@@ -5,7 +5,15 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validatedData = categorySchema.parse(body);
+    const result = categorySchema.safeParse(body);
+   if (!result.success) {
+      return NextResponse.json(
+        { error: "Invalid data", details: result.error },
+        { status: 400 }
+      );
+    }
+
+    const validatedData = result.data;
     const category = await prisma.category.create({
       data: {
         presentationId: validatedData.presentationId,

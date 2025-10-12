@@ -1,7 +1,7 @@
 import prisma from '@/lib/db';
+import { apiResponse } from '@/utils/apiResponse';
 import { createQuestionSchema } from '@/validation/questions.validation';
 import { NextRequest, NextResponse } from 'next/server';
-
 
 
 export async function POST(req: NextRequest) {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Validation error', details: parsed.error.format() },
+        { error: 'Validation error', details: parsed.error },
         { status: 400 }
       );
     }
@@ -51,11 +51,7 @@ export async function GET(){
             }
         });
 
-        return NextResponse.json({
-            success : true,
-            message : "question fetched successfullly",
-            questions
-        })
+       return apiResponse(true,"Questions fetchecd successfully" , 200 , questions)
     } catch (error) {
         console.error(error);
         return NextResponse.json({

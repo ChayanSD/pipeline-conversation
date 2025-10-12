@@ -1,11 +1,20 @@
 import prisma from "@/lib/db";
+import { verifyTokenAndRole } from "@/utils/verifyTokenAndRole";
 import { presentationSchema } from "@/validation/presentation.validation";
 import { NextRequest ,NextResponse } from "next/server";
 
 
-export async function GET() : Promise<NextResponse>{
+export async function GET(request : NextRequest) : Promise<NextResponse>{
+    
   try {
-    const presentations = await prisma.presentation.findMany({
+    //Only Login user can access this route
+    const authHeader = request.headers.get("Authorization");
+    const user =  verifyTokenAndRole(authHeader, ["USER", "ADMIN"]);
+    if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
+     const presentations = await prisma.presentation.findMany({
       include: {
         categories: true,
         tests: true,
@@ -42,7 +51,17 @@ export async function POST(request: NextRequest) : Promise<NextResponse> {
   try {
     const body = await request.json();
     // Validate body using Zod
-    const validatedData = presentationSchema.parse(body);
+    const result = presentationSchema.safeParse(body);
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: "Invalid data", details: result.error },
+        { status: 400 }
+      );
+    }
+
+    const validatedData = result.data;
+
     const presentation = await prisma.presentation.create({
       data: {
         userId: validatedData.userId,
