@@ -6,7 +6,12 @@ export async function GET(request: NextRequest) {
   const userId = url.searchParams.get("userId");
 
   if (!userId) {
-    return new Response("Missing userId", { status: 400 });
+    return NextResponse.json({
+        success: false,
+        message: "Missing userId parameter",
+      }, {
+        status: 400,
+    })
   }
 
   try {
