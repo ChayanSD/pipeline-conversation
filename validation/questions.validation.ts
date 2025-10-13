@@ -13,5 +13,19 @@ export const createQuestionSchema = z.object({
     .array(createOptionSchema)
     .min(1, 'At least one option is required'),
 });
+export const updateQuestionSchema = z.object({
+  text: z.string().optional(),
+  categoryId: z.string().optional(),
+  options: z
+    .array(
+      z.object({
+        id: z.string().optional(), // optional because new options may not have one
+        text: z.string(),
+        points: z.number(),
+      })
+    )
+    .optional(),
+});
 
 export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
+
