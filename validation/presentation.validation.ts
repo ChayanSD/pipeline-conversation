@@ -7,3 +7,4 @@ export const presentationSchema = z.object({
 
 
 export type PresentationType = z.infer<typeof presentationSchema>
+export const updatePresentationSchema = presentationSchema.partial();
