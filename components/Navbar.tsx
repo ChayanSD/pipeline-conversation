@@ -12,11 +12,12 @@ export default function Navbar() {
   const handleLogout = async () => {
     try {
       await axios.post('/api/auth/logout');
-      router.push('/signin');
+      // Force page refresh to clear all state
+      window.location.href = '/signin';
     } catch (error) {
       console.error('Logout failed:', error);
-      // Force logout on client side
-      router.push('/signin');
+      // Force logout on client side with page refresh
+      window.location.href = '/signin';
     }
   };
 
