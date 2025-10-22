@@ -9,15 +9,22 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      UserRole @default(USER)
-  avatarUrl String?
+  id              String  @id @default(cuid())
+  name            String
+  email           String  @unique
+  passCode        String
+  companyName     String
+  primaryColor    String
+  secondaryColor  String?
+  profileImageUrl String?
+  companyLogoUrl  String?
+
+  role UserRole @default(USER)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  //Relations
   presentations Presentation[]
   tests         Test[]
 
@@ -26,14 +33,14 @@ model User {
 }
 
 enum UserRole {
-  USER
   ADMIN
+  USER
 }
 
 model Presentation {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   title      String
   categories Category[]
   tests      Test[]
@@ -46,14 +53,14 @@ model Presentation {
 }
 
 model Category {
-  id             String       @id @default(cuid())
+  id             String          @id @default(cuid())
   name           String
   presentationId String
-  presentation   Presentation @relation(fields: [presentationId], references: [id] , onDelete: Cascade)
+  presentation   Presentation    @relation(fields: [presentationId], references: [id], onDelete: Cascade)
   questions      Question[]
   categoryScores CategoryScore[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@index([name])
   @@map("categories")
@@ -89,38 +96,35 @@ model CategoryScore {
   testId     String
   test       Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
   categoryId String
-  category   Category @relation(fields: [categoryId], references: [id],onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   score      Int      @default(0)
 
   @@map("category_scores")
 }
 
-
 model Test {
-  id              String         @id @default(cuid())
-  userId          String
-  user            User           @relation(fields: [userId], references: [id],onDelete: Cascade)
-  presentationId  String
-  presentation    Presentation   @relation(fields: [presentationId], references: [id],onDelete: Cascade)
-  categoryScores  CategoryScore[]
-  answers         Answer[]
-  totalScore      Int            @default(0)
-  createdAt       DateTime       @default(now())
+  id             String          @id @default(cuid())
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  presentationId String
+  presentation   Presentation    @relation(fields: [presentationId], references: [id], onDelete: Cascade)
+  categoryScores CategoryScore[]
+  answers        Answer[]
+  totalScore     Int             @default(0)
+  createdAt      DateTime        @default(now())
 
   @@map("tests")
 }
-
 
 model Answer {
   id         String   @id @default(cuid())
   testId     String
   test       Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
   questionId String
-  question   Question @relation(fields: [questionId], references: [id],onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   optionId   String
-  option     Option   @relation(fields: [optionId], references: [id],onDelete: Cascade)
+  option     Option   @relation(fields: [optionId], references: [id], onDelete: Cascade)
   points     Int      @default(0)
 
   @@map("answers")
 }
-
