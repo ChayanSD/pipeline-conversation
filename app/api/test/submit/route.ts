@@ -2,7 +2,7 @@ import prisma from "@/lib/db";
 import { submitTestSchema } from "@/validation/test.validaton";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest) : Promise<NextResponse>  {
   try {
     const body = await request.json();
 

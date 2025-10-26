@@ -14,7 +14,7 @@ const UpdateProfileSchema = z.object({
   email: z.email('Invalid email address').optional(),
 });
 
-export async function PATCH(request: NextRequest) {
+export async function PATCH(request: NextRequest) : Promise<NextResponse> {
   try {
     // Get current session
     const session = await getSession();
@@ -98,7 +98,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 // Optional: GET endpoint to fetch current user profile
-export async function GET() {
+export async function GET() : Promise<NextResponse> {
   try {
     const session = await getSession();
     

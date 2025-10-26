@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ratelimit } from "@/lib/ratelimit";
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest) : Promise<NextResponse> {
   const ip = req.headers.get("x-forwarded-for") ?? "anonymous";
   console.log("IP:", ip);
   const { success } = await ratelimit.limit(ip);

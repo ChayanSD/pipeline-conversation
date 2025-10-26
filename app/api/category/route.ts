@@ -2,7 +2,7 @@ import prisma from "@/lib/db";
 import { categorySchema } from "@/validation/category.validation";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest) : Promise<NextResponse> {
   try {
     const body = await request.json();
     const result = categorySchema.safeParse(body);
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET() : Promise<NextResponse> {
   try {
     const categories = await prisma.category.findMany({
       include: {

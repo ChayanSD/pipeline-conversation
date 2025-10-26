@@ -4,7 +4,7 @@ import { createQuestionSchema } from '@/validation/questions.validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest) : Promise<NextResponse> {
   try {
     const json = await req.json();
 
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET(){
+export async function GET() : Promise<NextResponse> {
     try {
         const questions = await prisma.question.findMany({
             include : {

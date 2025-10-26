@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 
-export async function GET() {
+export async function GET() : Promise<NextResponse>  {
   const session = await getSession();
   console.log("Session in user route:", session);
 

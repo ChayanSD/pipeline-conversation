@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { deleteSession, clearSessionCookie } from '@/lib/session';
 
-export async function POST() {
+export async function POST() : Promise<NextResponse> {
   try {
     // Delete session from Redis
     await deleteSession();
