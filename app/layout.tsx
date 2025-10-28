@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { UserProvider } from "@/contexts/UserContext";
 import { getSession } from "@/lib/session";
-import Navbar from "@/components/Navbar";
+import Sidebar from "@/components/Sidebar";
 
 
 export const metadata: Metadata = {
@@ -18,11 +18,15 @@ export default async function RootLayout({
   const session = await getSession();
 
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" >
+      <body >
         <UserProvider user={session}>
-          <Navbar />
-          <main>{children}</main>
+          <div className="flex h-screen ">
+            <Sidebar />
+            <main className="flex-1 overflow-auto ">
+              {children}
+            </main>
+          </div>
         </UserProvider>
       </body>
     </html>

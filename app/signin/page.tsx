@@ -66,7 +66,7 @@ export default function SigninPage() {
               </div>
             </div>
             <h2 className="text-5xl font-extrabold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-3 tracking-tight">
-              Sign In
+            Login into Your Account
             </h2>
             <p className="text-slate-300 text-base font-medium">
               Welcome back to Pipeline Conversation
