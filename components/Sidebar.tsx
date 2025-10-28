@@ -1,14 +1,17 @@
 'use client';
 
 import { useUser } from '@/contexts/UserContext';
-import { useRouter, usePathname } from 'next/navigation';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import Image from 'next/image';
 import logo from '@/public/logo.png';
 export default function Sidebar() {
   const { user } = useUser();
+  const { theme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const handleLogout = async () => {
     try {
@@ -35,15 +38,6 @@ export default function Sidebar() {
         </svg>
       ),
     },
-    {
-      name: 'Profile',
-      href: '/profile',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      ),
-    },
   ];
 
   if (user.role === 'ADMIN') {
@@ -56,6 +50,25 @@ export default function Sidebar() {
         </svg>
       ),
     });
+  }
+
+  // When on add-new-audit, show Category 1-7 and hide ALL AUDITS button
+  let effectiveItems = navigationItems;
+  const onNewAuditPage = pathname === '/add-new-audit';
+  if (onNewAuditPage) {
+    const categoryItems = Array.from({ length: 7 }, (_, i) => ({
+      name: `Category ${i + 1}`,
+      href: `/add-new-audit?category=${i + 1}`,
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2 2h10a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+        </svg>
+      ),
+    }));
+
+    // Remove ALL AUDITS from the list and prepend categories
+    const [, ...rest] = navigationItems;
+    effectiveItems = [...categoryItems, ...rest];
   }
 
   return (
@@ -101,20 +114,35 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="py-6" style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
-        {navigationItems.map((item) => {
-          const isActive = pathname === item.href;
+        {onNewAuditPage && (
+          <div className="px-4 text-center font-medium text-[#F7FCFF]" style={{ marginBottom: 'clamp(0.25rem, 1vw, 0.5rem)' }}>
+            ALL AUDITS
+          </div>
+        )}
+        {effectiveItems.map((item) => {
+          // Active state: exact match for regular links; for category links, match by query param
+          let isActive = pathname === item.href;
+          if (onNewAuditPage && item.href.startsWith('/add-new-audit')) {
+            const currentCategory = searchParams.get('category');
+            const itemCategory = new URLSearchParams(item.href.split('?')[1]).get('category');
+            isActive = currentCategory === itemCategory;
+          }
+          const useSecondary = onNewAuditPage && item.href.startsWith('/add-new-audit');
           return (
             <button
               key={item.name}
               onClick={() => router.push(item.href)}
-              className={`acumin-button ml-4 cursor-pointer flex items-center text-black ${
+              className={`ml-4 h-[42px] cursor-pointer flex items-center text-black ${
                 isActive 
-                  ? 'w-[95%] mr-0 bg-white rounded-l-lg'  
-                  : 'w-[88%] bg-red-500 rounded-lg hover:bg-gray-100 hover:text-gray-900'
+                  ? 'w-[94.5%] mr-0 rounded-l-xl'  
+                  : 'w-[88%] rounded-xl hover:bg-gray-100 hover:text-gray-900'
               }`}
               style={{
                 padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(0.75rem, 3vw, 1rem)',
-                marginLeft: 'clamp(0.75rem, 2vw, 1rem)'
+                marginLeft: 'clamp(0.75rem, 2vw, 1rem)',
+                backgroundColor: useSecondary ? theme.secondary : 'white',
+                  color: isActive ? (useSecondary ? 'white' : 'black') : (useSecondary ? '#76899B' : theme.primary),
+                  border:  (useSecondary ? '2px solid #76899B' : 'none') ,
               }}
             >
               {item.name}
@@ -131,8 +159,8 @@ export default function Sidebar() {
               className="rounded-full object-cover cursor-pointer"
               src={user.profileImageUrl}
               alt="Profile"
-              width={244}
-              height={269}
+              width={180}
+              height={199}
               onClick={handleLogout}
               style={{
                 width: 'clamp(60px, 15vw, 244px)',
@@ -144,8 +172,8 @@ export default function Sidebar() {
               className="rounded bg-gray-300 flex items-center justify-center cursor-pointer"
               onClick={handleLogout}
               style={{
-                width: 'clamp(60px, 15vw, 244px)',
-                height: 'clamp(60px, 15vw, 269px)'
+                width: 'clamp(60px, 15vw, 180px)',
+                height: 'clamp(60px, 15vw, 199px)'
               }}
             >
               <span className="font-medium text-gray-700" style={{ fontSize: 'clamp(1rem, 4vw, 1.5rem)' }}>

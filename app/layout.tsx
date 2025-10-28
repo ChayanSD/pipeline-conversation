@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { UserProvider } from "@/contexts/UserContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { getSession } from "@/lib/session";
 import Sidebar from "@/components/Sidebar";
 
@@ -21,12 +22,14 @@ export default async function RootLayout({
     <html lang="en" >
       <body >
         <UserProvider user={session}>
-          <div className="flex h-screen ">
-            <Sidebar />
-            <main className="flex-1 overflow-auto ">
-              {children}
-            </main>
-          </div>
+          <ThemeProvider>
+            <div className="flex h-screen ">
+              <Sidebar />
+              <main className="flex-1 overflow-auto ">
+                {children}
+              </main>
+            </div>
+          </ThemeProvider>
         </UserProvider>
       </body>
     </html>

@@ -1,17 +1,19 @@
 "use client";
 
 import { useUser } from "@/contexts/UserContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import notFoundImg from "@/public/notFound.png";
 import Image from "next/image";
-export default function Home() {
+
+export default function AddNewAuditPage() {
   const { user } = useUser();
+  const { theme } = useTheme();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Manual authentication check
     const checkAuth = async () => {
       try {
         const response = await fetch("/api/auth/check");
@@ -60,21 +62,21 @@ export default function Home() {
               }}
             />
             <p className="text-[#2D2D2D] mb-2 font-normal" style={{ fontSize: 'clamp(.5rem, 6vw, 2.5rem)' }}>
-              NO AUDIT CREATED
+              START A NEW AUDIT
             </p>
             <p className="text-[#2D2D2D] mb-2 font-normal" style={{ fontSize: 'clamp(1rem, 4vw, 1.625rem)' }}>
-            Start your first audit to see your performance insights here.
+              Choose a category from the sidebar to begin your audit.
             </p>
             <button
-              onClick={() => (window.location.href = "/add-new-audit/?category=1")}
-              className="w-[318px] mt-4 h-[50px] text-black font-medium transition-colors font-acumin cursor-pointer rounded-full"
+              onClick={() => (window.location.href = "/")}
+              className="w-[318px] mt-4 h-[42px] text-black font-medium transition-colors font-acumin cursor-pointer rounded-full"
               style={{
                 padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)',
                 fontSize: 'clamp(0.875rem, 2.5vw, 1rem)',
-                backgroundColor: '#F7AF41'
+                backgroundColor: theme.secondary
               }}
             >
-              Start New Audit
+              Back to Home
             </button>
           </div>
         </div>
@@ -133,3 +135,5 @@ export default function Home() {
     </div>
   );
 }
+
+

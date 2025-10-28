@@ -21,4 +21,14 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  .btn-primary {
+    background-color: "#F7AF41";
+    color: #ffffff;
+  }
+
+  .btn-secondary {
+    background-color: #F7AF41;
+    color: #000000;
+  }
+
 }
