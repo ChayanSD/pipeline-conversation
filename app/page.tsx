@@ -1,10 +1,10 @@
+"use client";
 
-'use client';
-
-import { useUser } from '@/contexts/UserContext';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-
+import { useUser } from "@/contexts/UserContext";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import notFoundImg from "@/public/notFound.png";
+import Image from "next/image";
 export default function Home() {
   const { user } = useUser();
   const router = useRouter();
@@ -14,18 +14,18 @@ export default function Home() {
     // Manual authentication check
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/check');
+        const response = await fetch("/api/auth/check");
         const data = await response.json();
 
         if (!data.authenticated) {
-          router.push('/signin');
+          router.push("/signin");
           return;
         }
 
         setIsLoading(false);
       } catch (error) {
         console.error(error);
-        router.push('/signin');
+        router.push("/signin");
       }
     };
 
@@ -41,53 +41,95 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">
-                Welcome back, {user.name}!
-              </h1>
-              <p className="text-gray-600 mb-6">
-                Welcome to Pipeline Conversation - your quiz application platform.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="bg-blue-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-medium text-blue-900 mb-2">Take Tests</h3>
-                  <p className="text-blue-700">Participate in various quizzes and assessments.</p>
-                </div>
-
-                <div className="bg-green-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-medium text-green-900 mb-2">View Results</h3>
-                  <p className="text-green-700">Check your test scores and performance analytics.</p>
-                </div>
-
-                <div className="bg-purple-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-medium text-purple-900 mb-2">Profile</h3>
-                  <p className="text-purple-700">Manage your account and view your information.</p>
-                </div>
-              </div>
-
-              {user.role === 'ADMIN' && (
-                <div className="mt-8 bg-yellow-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-medium text-yellow-900 mb-2">Admin Access</h3>
-                  <p className="text-yellow-700 mb-4">
-                    You have administrative privileges. Access the dashboard to manage users, tests, and categories.
-                  </p>
-                  <button
-                    onClick={() => window.location.href = '/dashboard'}
-                    className="bg-yellow-500 hover:bg-yellow-700 text-white px-4 py-2 rounded"
-                  >
-                    Go to Admin Dashboard
-                  </button>
-                </div>
-              )}
-            </div>
+    <div className="p-14 bg-transparent">
+      <div className="">
+        <h1 className="text-gray-900 mb-2 font-normal" style={{ fontSize: 'clamp(1.25rem, 4vw, 1.6875rem)' }}>
+          Hellow, {user.name}!
+        </h1>
+        <div className="flex justify-center items-center h-[80vh]">
+          <div className="flex flex-col justify-center items-center">
+            <Image 
+              src={notFoundImg} 
+              alt="Logo" 
+              width={380} 
+              height={266} 
+              style={{
+                width: 'clamp(200px, 25vw, 380px)',
+                height: 'clamp(140px, 18vw, 266px)',
+                objectFit: 'contain'
+              }}
+            />
+            <p className="text-[#2D2D2D] mb-2 font-normal" style={{ fontSize: 'clamp(.5rem, 6vw, 2.5rem)' }}>
+              NO AUDIT CREATED
+            </p>
+            <p className="text-[#2D2D2D] mb-2 font-normal" style={{ fontSize: 'clamp(1rem, 4vw, 1.625rem)' }}>
+            Start your first audit to see your performance insights here.
+            </p>
+            <button
+              onClick={() => (window.location.href = "/add-new-audit/?category=1")}
+              className="w-[318px] mt-4 h-[50px] text-black font-medium transition-colors font-acumin cursor-pointer rounded-full"
+              style={{
+                padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)',
+                fontSize: 'clamp(0.875rem, 2.5vw, 1rem)',
+                backgroundColor: '#F7AF41'
+              }}
+            >
+              Start New Audit
+            </button>
           </div>
         </div>
       </div>
+
+      {user.role === "ADMIN" && (
+        <div 
+          className="bg-linear-to-r from-yellow-50 to-orange-50 rounded-lg border border-yellow-200"
+          style={{ padding: 'clamp(1rem, 3vw, 1.5rem)' }}
+        >
+          <div className="flex items-start">
+            <div 
+              className="bg-yellow-100 rounded-lg mr-4"
+              style={{ 
+                padding: 'clamp(0.5rem, 2vw, 0.75rem)',
+                marginRight: 'clamp(0.75rem, 2vw, 1rem)'
+              }}
+            >
+              <svg
+                className="text-yellow-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                style={{ width: 'clamp(1.25rem, 3vw, 1.5rem)', height: 'clamp(1.25rem, 3vw, 1.5rem)' }}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-yellow-900 mb-2 font-acumin" style={{ fontSize: 'clamp(1rem, 3vw, 1.125rem)' }}>
+                Admin Access
+              </h3>
+              <p className="text-yellow-800 mb-4 font-acumin" style={{ fontSize: 'clamp(0.875rem, 2.5vw, 1rem)' }}>
+                You have administrative privileges. Access the dashboard to
+                manage users, tests, and categories.
+              </p>
+              <button
+                onClick={() => (window.location.href = "/dashboard")}
+                className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-md font-medium transition-colors font-acumin"
+                style={{
+                  padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)',
+                  fontSize: 'clamp(0.875rem, 2.5vw, 1rem)'
+                }}
+              >
+                Go to Admin Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
