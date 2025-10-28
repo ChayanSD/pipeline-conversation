@@ -1,10 +1,10 @@
-
 'use client';
 
 import { useState } from 'react';
 import axios from 'axios';
+import Image from 'next/image';
 import Link from 'next/link';
-import { Mail, Lock } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function SigninPage() {
   const [formData, setFormData] = useState({
@@ -13,6 +13,7 @@ export default function SigninPage() {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -28,124 +29,113 @@ export default function SigninPage() {
       const response = await axios.post('/api/auth/login', formData);
 
       if (response.data.success) {
-        // Redirect based on role
         const userRole = response.data.role;
-        if (userRole === 'ADMIN') {
-          window.location.href = '/dashboard';
-        } else {
-          window.location.href = '/';
-        }
+        window.location.href = userRole === 'ADMIN' ? '/dashboard' : '/';
       } else {
         setMessage(response.data.error || 'Login failed');
       }
-    } catch (error) {
-      const axiosError = error as { response?: { data?: { error?: string } } };
-      setMessage(axiosError.response?.data?.error || 'An error occurred');
+    } catch (error: any) {
+      setMessage(error.response?.data?.error || 'An error occurred');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse animation-delay-2000"></div>
-        <div className="absolute top-40 left-40 w-80 h-80 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse animation-delay-4000"></div>
-      </div>
+    <div
+      className="relative min-h-screen flex items-center justify-center"
+      style={{
+        backgroundImage: 'url(/bg-img.png)',
+        backgroundSize: 'contain'
+      }}
+    >
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-[rgba(43,64,85,0.70)] z-0"></div>
 
-      <div className="max-w-lg w-full space-y-10 relative z-10">
-        <div className="backdrop-blur-lg bg-white/10 rounded-3xl p-10 shadow-2xl border border-white/20">
-          <div className="text-center">
-            <div className="mb-6">
-              <div className="w-16 h-16 mx-auto bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full flex items-center justify-center mb-4 shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-            </div>
-            <h2 className="text-5xl font-extrabold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-3 tracking-tight">
-              Sign In
-            </h2>
-            <p className="text-slate-300 text-base font-medium">
-              Welcome back to Pipeline Conversation
-            </p>
-          </div>
-        <form className="mt-10 space-y-8" onSubmit={handleSubmit}>
-          <div className="space-y-6">
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
+      {/* Content */}
+      <div className="flex flex-col items-center relative z-10">
+        {/* Logo */}
+        <Image
+          src="/logo.png"
+          alt="Pipeline Conversions"
+          width={180}
+          height={60}
+          className="mb-4"
+        />
+        <h2 className="text-white text-2xl font-semibold mb-6 tracking-wide">
+          WELCOME BACK
+        </h2>
+
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-xl w-[380px] p-8">
+          <h3 className="text-center text-lg font-semibold text-gray-800 mb-6">
+            LOGIN INTO YOUR ACCOUNT
+          </h3>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">
+                Email Address
+              </label>
               <input
-                id="email"
-                name="email"
                 type="email"
-                autoComplete="email"
+                name="email"
                 required
-                className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                placeholder="Email address"
                 value={formData.email}
                 onChange={handleInputChange}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-400"
               />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
             </div>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
-              <input
-                id="passCode"
-                name="passCode"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                placeholder="Passcode"
-                value={formData.passCode}
-                onChange={handleInputChange}
-              />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-            </div>
-          </div>
 
-          <div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">
+                Passcode
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="passCode"
+                  required
+                  value={formData.passCode}
+                  onChange={handleInputChange}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+
+              <div className="text-right mt-2">
+                <Link
+                  href="/forgot-password"
+                  className="text-sm text-blue-500 hover:text-blue-600"
+                >
+                  Forgot Passcode?
+                </Link>
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl overflow-hidden"
+              className="w-full bg-gradient-to-b from-yellow-400 to-yellow-500 text-gray-800 font-semibold py-2 rounded-lg shadow-md hover:opacity-90 transition-all disabled:opacity-70"
             >
-              <span className="relative z-10 flex items-center justify-center">
-                {loading ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Signing In...
-                  </>
-                ) : (
-                  'Sign In'
-                )}
-              </span>
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-purple-400 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+              {loading ? 'Logging in...' : 'Login'}
             </button>
-          </div>
 
-          {message && (
-            <div className="text-center">
-              <p className={`text-sm ${message.includes('successful') ? 'text-green-400' : 'text-red-400'}`}>
+            {message && (
+              <p
+                className={`text-center text-sm ${message.includes('failed') ? 'text-red-500' : 'text-green-500'
+                  }`}
+              >
                 {message}
               </p>
-            </div>
-          )}
-
-          <div className="text-center">
-            <p className="text-sm text-slate-300">
-              Don&apos;t have an account?{' '}
-              <Link href="/signup" className="font-medium text-cyan-400 hover:text-cyan-300 transition-colors duration-300">
-                Sign up here
-              </Link>
-            </p>
-          </div>
-        </form>
+            )}
+          </form>
         </div>
       </div>
     </div>
