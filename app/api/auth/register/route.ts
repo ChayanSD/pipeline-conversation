@@ -11,7 +11,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "Invalid input", details: parsed.error.message },
+        { error: "Invalid input", details: parsed.error.flatten() },
         { status: 400 }
       );
     }
@@ -30,7 +30,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const hashedPass = await bcrypt.hash(passCode, 10);
     let user;
-    let company;
 
     if (inviteToken) {
       // --- Invite-based registration ---
@@ -75,6 +74,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         include: { company: true },
       });
 
+      // Mark invitation as accepted
       await prisma.invitation.update({
         where: { id: invitation.id },
         data: {
@@ -82,8 +82,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           expiresAt: new Date(),
         },
       });
-
-      company = user.company;
     } else {
       // --- Normal registration ---
       if (!companyName) {
@@ -104,43 +102,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      const [newCompany, newUser] = await prisma.$transaction([
-        prisma.company.create({
-          data: {
-            name: companyName,
-            logoUrl: companyLogoUrl ?? null,
-          },
-        }),
-        prisma.user.create({
-          data: {
-            name,
-            email: email!,
-            passCode: hashedPass,
-            role: "ADMIN",
-            primaryColor: primaryColor ?? "#000000",
-            secondaryColor: secondaryColor ?? "#FFFFFF",
-            profileImageUrl,
-            company: {
-              create: {
-                name: companyName,
-                logoUrl: companyLogoUrl ?? null,
-              },
+      // Create user with nested company creation (no duplication)
+      user = await prisma.user.create({
+        data: {
+          name,
+          email: email!,
+          passCode: hashedPass,
+          role: "ADMIN",
+          primaryColor: primaryColor ?? "#000000",
+          secondaryColor: secondaryColor ?? "#FFFFFF",
+          profileImageUrl,
+          company: {
+            create: {
+              name: companyName,
+              logoUrl: companyLogoUrl ?? null,
             },
           },
-          include: { company: true },
-        }),
-      ]);
-
-      user = newUser;
-      company = newCompany;
+        },
+        include: { company: true }, // ensures user.company is populated
+      });
     }
 
     // --- Create session with user + company ---
-    const sessionId = await createSession({
-      ...user,
-      company, 
-    });
-
+    const sessionId = await createSession(user);
     await setSessionCookie(sessionId);
 
     return NextResponse.json(

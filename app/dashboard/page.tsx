@@ -3,29 +3,33 @@
 import { useUser } from '@/contexts/UserContext';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
+import InviteMemberForm from '@/components/InviteMemberForm';
 
 export default function DashboardPage() {
   const { user } = useUser();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(user);
+  const [showInviteForm, setShowInviteForm] = useState(false);
 
   useEffect(() => {
     // Manual authentication check
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/check');
-        const data = await response.json();
+        const response = await axios.get('/api/auth/check');
 
-        if (!data.authenticated) {
+        if (!response.data.authenticated) {
           router.push('/signin');
           return;
         }
 
-        if (data.user.role !== 'ADMIN') {
+        if (response.data.user.role !== 'ADMIN') {
           router.push('/');
           return;
         }
 
+        setCurrentUser(response.data.user);
         setIsLoading(false);
       } catch (error) {
         console.error(error);
@@ -40,7 +44,7 @@ export default function DashboardPage() {
     return <div>Loading...</div>;
   }
 
-  if (!user || user.role !== 'ADMIN') {
+  if (!currentUser || currentUser.role !== 'ADMIN') {
     return <div>Access denied. Admin only.</div>;
   }
 
@@ -105,6 +109,31 @@ export default function DashboardPage() {
                     </dl>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Invite Member Section */}
+          <div className="mt-8">
+            <div className="bg-white overflow-hidden shadow rounded-lg">
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-gray-900">Invite Member</h3>
+                  <button
+                    onClick={() => setShowInviteForm(!showInviteForm)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    {showInviteForm ? 'Hide Form' : 'Invite Member'}
+                  </button>
+                </div>
+                {showInviteForm && currentUser?.company && (
+                  <div className="mt-6">
+                    <InviteMemberForm
+                      companyId={currentUser.company.id}
+                      invitedById={currentUser.id}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>

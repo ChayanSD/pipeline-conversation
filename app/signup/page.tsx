@@ -1,11 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import axios from "axios";
 import Link from "next/link";
 import Image from "next/image";
 
+interface InvitationData {
+  email: string;
+  role: string;
+  company: {
+    id: string;
+    name: string;
+  };
+}
+
 export default function SignupPage() {
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -16,7 +29,10 @@ export default function SignupPage() {
     profileImageUrl: "",
     companyLogoUrl: "",
     role: "USER",
+    inviteToken: "",
   });
+  const [invitation, setInvitation] = useState<InvitationData | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [companyLogo, setCompanyLogo] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -25,6 +41,32 @@ export default function SignupPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [profilePreview, setProfilePreview] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (token) {
+      fetchInvitation();
+    }
+  }, [token]);
+
+  const fetchInvitation = async () => {
+    try {
+      const response = await axios.get(`/api/invite?token=${token}`);
+      if (response.data.success) {
+        setInvitation(response.data.data);
+        setFormData((prev) => ({
+          ...prev,
+          email: response.data.data.email,
+          role: response.data.data.role,
+          inviteToken: token!,
+        }));
+        setInviteError(null);
+      }
+    } catch (error) {
+      const axiosError = error as { response?: { data?: { error?: string } } };
+      setInviteError(axiosError.response?.data?.error || "Invalid invitation");
+      setInvitation(null);
+    }
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -115,6 +157,7 @@ export default function SignupPage() {
         profileImageUrl:
           formData.profileImageUrl || profileImageUrl || undefined,
         companyLogoUrl: formData.companyLogoUrl || companyLogoUrl || undefined,
+        inviteToken: token || undefined,
       };
 
       const response = await axios.post("/api/auth/register", dataToSend);
@@ -152,11 +195,17 @@ export default function SignupPage() {
         <div className="backdrop-blur-lg bg-white/10 rounded-3xl p-8 shadow-2xl border border-white/20">
           <div className="text-center">
             <h2 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
-              Create Account
+              {invitation ? "Join Company" : "Create Account"}
             </h2>
             <p className="text-slate-300 text-sm">
-              Join Pipeline Conversation today
+              {invitation
+                ? `You've been invited to join ${invitation.company.name}`
+                : "Join Pipeline Conversation today"
+              }
             </p>
+            {inviteError && (
+              <p className="text-red-400 text-sm mt-2">{inviteError}</p>
+            )}
           </div>
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-6">
@@ -173,20 +222,37 @@ export default function SignupPage() {
               />
               <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
             </div>
-            <div className="relative">
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                placeholder="Email address"
-                value={formData.email}
-                onChange={handleInputChange}
-              />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-            </div>
+            {invitation ? (
+              <div className="relative">
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  disabled
+                  className="w-full px-4 py-3 bg-gray-600/50 border border-gray-500 rounded-xl text-gray-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm transition-all duration-300 cursor-not-allowed"
+                  placeholder="Email address"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm transition-all duration-300"
+                  placeholder="Email address"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              </div>
+            )}
             <div className="relative">
               <input
                 id="passCode"
@@ -201,174 +267,181 @@ export default function SignupPage() {
               />
               <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
             </div>
-            <div className="relative">
-              <input
-                id="companyName"
-                name="companyName"
-                type="text"
-                className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                placeholder="Company Name (optional)"
-                value={formData.companyName}
-                onChange={handleInputChange}
-              />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-            </div>
+            {!invitation && (
+              <div className="relative">
+                <input
+                  id="companyName"
+                  name="companyName"
+                  type="text"
+                  required
+                  className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent backdrop-blur-sm transition-all duration-300"
+                  placeholder="Company Name"
+                  value={formData.companyName}
+                  onChange={handleInputChange}
+                />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              </div>
+            )}
 
             {/* Color Selection */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium text-white text-center">Choose Your Colors</h3>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="text-center">
-                  <label htmlFor="primaryColor" className="block text-sm font-medium text-slate-300 mb-3">
-                    Primary Color
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="primaryColor"
-                      name="primaryColor"
-                      type="color"
-                      className="w-16 h-16 rounded-full border-4 border-cyan-400 shadow-lg cursor-pointer appearance-none"
-                      value={formData.primaryColor}
-                      onChange={handleInputChange}
-                    />
-                    <div
-                      className="w-20 h-20 rounded-full border-2 border-cyan-400/50 mx-auto mt-2 backdrop-blur-sm"
-                      style={{ backgroundColor: formData.primaryColor || '#3B82F6' }}
-                    ></div>
+            {!invitation && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-white text-center">Choose Your Colors</h3>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="text-center">
+                    <label htmlFor="primaryColor" className="block text-sm font-medium text-slate-300 mb-3">
+                      Primary Color
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="primaryColor"
+                        name="primaryColor"
+                        type="color"
+                        className="w-16 h-16 rounded-full border-4 border-cyan-400 shadow-lg cursor-pointer appearance-none"
+                        value={formData.primaryColor}
+                        onChange={handleInputChange}
+                      />
+                      <div
+                        className="w-20 h-20 rounded-full border-2 border-cyan-400/50 mx-auto mt-2 backdrop-blur-sm"
+                        style={{ backgroundColor: formData.primaryColor || '#3B82F6' }}
+                      ></div>
+                    </div>
                   </div>
-                </div>
-                <div className="text-center">
-                  <label htmlFor="secondaryColor" className="block text-sm font-medium text-slate-300 mb-3">
-                    Secondary Color
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="secondaryColor"
-                      name="secondaryColor"
-                      type="color"
-                      className="w-16 h-16 rounded-full border-4 border-purple-400 shadow-lg cursor-pointer appearance-none"
-                      value={formData.secondaryColor}
-                      onChange={handleInputChange}
-                    />
-                    <div
-                      className="w-20 h-20 rounded-full border-2 border-purple-400/50 mx-auto mt-2 backdrop-blur-sm"
-                      style={{ backgroundColor: formData.secondaryColor || '#10B981' }}
-                    ></div>
+                  <div className="text-center">
+                    <label htmlFor="secondaryColor" className="block text-sm font-medium text-slate-300 mb-3">
+                      Secondary Color
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="secondaryColor"
+                        name="secondaryColor"
+                        type="color"
+                        className="w-16 h-16 rounded-full border-4 border-purple-400 shadow-lg cursor-pointer appearance-none"
+                        value={formData.secondaryColor}
+                        onChange={handleInputChange}
+                      />
+                      <div
+                        className="w-20 h-20 rounded-full border-2 border-purple-400/50 mx-auto mt-2 backdrop-blur-sm"
+                        style={{ backgroundColor: formData.secondaryColor || '#10B981' }}
+                      ></div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
 
 
             {/* File Uploads */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-medium text-white text-center">
-                Upload Images
-              </h3>
+            {!invitation && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-white text-center">
+                  Upload Images
+                </h3>
 
-              {/* Profile Image Upload */}
-              <div className="flex items-center space-x-4">
-                <div className="flex-shrink-0">
-                  {profilePreview ? (
-                    <Image
-                      src={profilePreview}
-                      alt="Profile preview"
-                      className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
-                      height={22}
-                      width={22}
+                {/* Profile Image Upload */}
+                <div className="flex items-center space-x-4">
+                  <div className="flex-shrink-0">
+                    {profilePreview ? (
+                      <Image
+                        src={profilePreview}
+                        alt="Profile preview"
+                        className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
+                        height={22}
+                        width={22}
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                        <svg
+                          className="w-8 h-8 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <label
+                      htmlFor="profileImage"
+                      className="block text-sm font-medium text-slate-300 mb-1"
+                    >
+                      Profile Image
+                    </label>
+                    <input
+                      id="profileImage"
+                      name="profileImage"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileChange(e, "profile")}
+                      className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-cyan-500/20 file:text-cyan-300 hover:file:bg-cyan-500/30 disabled:opacity-50 backdrop-blur-sm"
+                      disabled={uploadingProfile}
                     />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
-                      <svg
-                        className="w-8 h-8 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                        />
-                      </svg>
-                    </div>
-                  )}
+                    {uploadingProfile && (
+                      <p className="text-sm text-cyan-400 mt-1">Uploading...</p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <label
-                    htmlFor="profileImage"
-                    className="block text-sm font-medium text-slate-300 mb-1"
-                  >
-                    Profile Image
-                  </label>
-                  <input
-                    id="profileImage"
-                    name="profileImage"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "profile")}
-                    className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-cyan-500/20 file:text-cyan-300 hover:file:bg-cyan-500/30 disabled:opacity-50 backdrop-blur-sm"
-                    disabled={uploadingProfile}
-                  />
-                  {uploadingProfile && (
-                    <p className="text-sm text-cyan-400 mt-1">Uploading...</p>
-                  )}
+
+                {/* Company Logo Upload */}
+                <div className="flex items-center space-x-4">
+                  <div className="flex-shrink-0">
+                    {logoPreview ? (
+                      <Image
+                        src={logoPreview}
+                        alt="Logo preview"
+                        className="w-16 h-16 rounded-lg object-cover border-2 border-gray-200"
+                        height={22}
+                        width={22}
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center">
+                        <svg
+                          className="w-8 h-8 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <label
+                      htmlFor="companyLogo"
+                      className="block text-sm font-medium text-slate-300 mb-1"
+                    >
+                      Company Logo
+                    </label>
+                    <input
+                      id="companyLogo"
+                      name="companyLogo"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileChange(e, "company")}
+                      className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-500/20 file:text-purple-300 hover:file:bg-purple-500/30 disabled:opacity-50 backdrop-blur-sm"
+                      disabled={uploadingLogo}
+                    />
+                    {uploadingLogo && (
+                      <p className="text-sm text-purple-400 mt-1">Uploading...</p>
+                    )}
+                  </div>
                 </div>
               </div>
-
-              {/* Company Logo Upload */}
-              <div className="flex items-center space-x-4">
-                <div className="flex-shrink-0">
-                  {logoPreview ? (
-                    <Image
-                      src={logoPreview}
-                      alt="Logo preview"
-                      className="w-16 h-16 rounded-lg object-cover border-2 border-gray-200"
-                      height={22}
-                      width={22}
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center">
-                      <svg
-                        className="w-8 h-8 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                        />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <label
-                    htmlFor="companyLogo"
-                    className="block text-sm font-medium text-slate-300 mb-1"
-                  >
-                    Company Logo
-                  </label>
-                  <input
-                    id="companyLogo"
-                    name="companyLogo"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "company")}
-                    className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-500/20 file:text-purple-300 hover:file:bg-purple-500/30 disabled:opacity-50 backdrop-blur-sm"
-                    disabled={uploadingLogo}
-                  />
-                  {uploadingLogo && (
-                    <p className="text-sm text-purple-400 mt-1">Uploading...</p>
-                  )}
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           <div>
