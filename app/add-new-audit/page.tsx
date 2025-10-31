@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import notFoundImg from "@/public/notFound.png";
 import Image from "next/image";
+import AddNewAudit from "@/components/AddNewAudit/AddNewAudit";
 
 export default function AddNewAuditPage() {
   const { user } = useUser();
@@ -43,43 +44,9 @@ export default function AddNewAuditPage() {
   }
 
   return (
-    <div className="p-14 bg-transparent">
-      <div className="">
-        <h1 className="text-gray-900 mb-2 font-normal" style={{ fontSize: 'clamp(1.25rem, 4vw, 1.6875rem)' }}>
-          Hellow, {user.name}!
-        </h1>
-        <div className="flex justify-center items-center h-[80vh]">
-          <div className="flex flex-col justify-center items-center">
-            <Image 
-              src={notFoundImg} 
-              alt="Logo" 
-              width={380} 
-              height={266} 
-              style={{
-                width: 'clamp(200px, 25vw, 380px)',
-                height: 'clamp(140px, 18vw, 266px)',
-                objectFit: 'contain'
-              }}
-            />
-            <p className="text-[#2D2D2D] mb-2 font-normal" style={{ fontSize: 'clamp(.5rem, 6vw, 2.5rem)' }}>
-              START A NEW AUDIT
-            </p>
-            <p className="text-[#2D2D2D] mb-2 font-normal" style={{ fontSize: 'clamp(1rem, 4vw, 1.625rem)' }}>
-              Choose a category from the sidebar to begin your audit.
-            </p>
-            <button
-              onClick={() => (window.location.href = "/")}
-              className="w-[318px] mt-4 h-[42px] text-black font-medium transition-colors font-acumin cursor-pointer rounded-full"
-              style={{
-                padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)',
-                fontSize: 'clamp(0.875rem, 2.5vw, 1rem)',
-                backgroundColor: theme.secondary
-              }}
-            >
-              Back to Home
-            </button>
-          </div>
-        </div>
+    <div className="">
+      <div className="mt-5">
+        <AddNewAudit/>
       </div>
 
       {user.role === "ADMIN" && (

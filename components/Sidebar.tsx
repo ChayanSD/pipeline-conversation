@@ -152,7 +152,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User Profile Section */}
-      <div className="mt-auto" style={{ position: 'relative', zIndex: 2, paddingBottom: 'clamp(1rem, 4vw, 2rem)' }}>
+      <div className="mt-auto overflow-hidden" style={{ position: 'relative', zIndex: 2, paddingBottom: 'clamp(1rem, 4vw, 2rem)' }}>
         <div className="flex items-center justify-center" style={{ marginBottom: 'clamp(0.75rem, 3vw, 1.25rem)' }}>
           {user.profileImageUrl ? (
             <Image
