@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { UserProvider } from "@/contexts/UserContext";
 import { getSession } from "@/lib/session";
-import Navbar from "@/components/Navbar";
+import ClientLayout from "@/components/ClientLayout";
 
 
 export const metadata: Metadata = {
@@ -20,10 +19,9 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body>
-        <UserProvider user={session}>
-          <Navbar />
-          <main>{children}</main>
-        </UserProvider>
+        <ClientLayout session={session}>
+          {children}
+        </ClientLayout>
       </body>
     </html>
   );
