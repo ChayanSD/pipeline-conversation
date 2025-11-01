@@ -13,7 +13,7 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    companyName: user?.companyName || '',
+    companyName: user?.company?.name || '',
   });
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export default function ProfilePage() {
     setFormData({
       name: user.name,
       email: user.email,
-      companyName: user.companyName || '',
+      companyName: user.company?.name || '',
     });
     setIsEditing(false);
   };
@@ -74,7 +74,7 @@ export default function ProfilePage() {
           <div className="bg-white shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
               <div className="flex items-center space-x-6 mb-6">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   {user.profileImageUrl ? (
                     <Image
                       className="h-24 w-24 rounded-full object-cover"
@@ -153,7 +153,7 @@ export default function ProfilePage() {
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                       />
                     ) : (
-                      <p className="mt-1 text-sm text-gray-900">{user.companyName || 'Not provided'}</p>
+                      <p className="mt-1 text-sm text-gray-900">{user?.company?.name || 'Not provided'}</p>
                     )}
                   </div>
 
@@ -163,11 +163,11 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {user.companyLogoUrl && (
+                {user.company?.logoUrl && (
                   <div className="mt-6">
                     <label className="block text-sm font-medium text-gray-700">Company Logo</label>
                     <Image
-                      src={user.companyLogoUrl}
+                      src={user.company.logoUrl}
                       alt="Company Logo"
                       className="mt-2 h-16 w-auto"
                       height={22}
