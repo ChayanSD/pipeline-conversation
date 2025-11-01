@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { randomUUID } from "crypto";
+import transport from "@/lib/nodemailer";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -80,6 +81,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // TODO: Send email link with: `${process.env.APP_URL}/signup?token=${token}`
+
+  const mail =  await transport.sendMail({
+      from : "chayansd5656@gmail.com",
+      to : email,
+      subject : "Your invitaion email",
+      text : `Invitation link: ${process.env.APP_URL}/signup?token=${token}`
+  })
+
+    console.log(mail);
 
     return NextResponse.json(
       {
