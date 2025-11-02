@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Presentation, Question, Category, Answer, TestResults, Test } from '@/lib/types';
+import { Presentation, Question, Answer, TestResults, Test } from '@/lib/types';
 import { testApi } from '@/lib/api';
 
 interface TestInterfaceProps {

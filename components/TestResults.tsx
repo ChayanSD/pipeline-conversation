@@ -1,6 +1,6 @@
 'use client';
 
-import { Presentation, Category } from '@/lib/types';
+import { Presentation } from '@/lib/types';
 
 interface TestResultsProps {
   presentation: Presentation;

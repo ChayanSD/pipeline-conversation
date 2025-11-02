@@ -183,7 +183,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="min-h-screen bg-linear-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
@@ -194,7 +194,7 @@ export default function SignupPage() {
       <div className="max-w-md w-full space-y-8 relative z-10">
         <div className="backdrop-blur-lg bg-white/10 rounded-3xl p-8 shadow-2xl border border-white/20">
           <div className="text-center">
-            <h2 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
+            <h2 className="text-4xl font-bold bg-linear-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
               {invitation ? "Join Company" : "Create Account"}
             </h2>
             <p className="text-slate-300 text-sm">
@@ -220,7 +220,7 @@ export default function SignupPage() {
                 value={formData.name}
                 onChange={handleInputChange}
               />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              <div className="absolute inset-0 rounded-xl bg-linear-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
             </div>
             {invitation ? (
               <div className="relative">
@@ -235,7 +235,7 @@ export default function SignupPage() {
                   value={formData.email}
                   onChange={handleInputChange}
                 />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                <div className="absolute inset-0 rounded-xl bg-linear-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
             ) : (
               <div className="relative">
@@ -250,7 +250,7 @@ export default function SignupPage() {
                   value={formData.email}
                   onChange={handleInputChange}
                 />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                <div className="absolute inset-0 rounded-xl bg-linear-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
             )}
             <div className="relative">
@@ -265,7 +265,7 @@ export default function SignupPage() {
                 value={formData.passCode}
                 onChange={handleInputChange}
               />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              <div className="absolute inset-0 rounded-xl bg-linear-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
             </div>
             {!invitation && (
               <div className="relative">
@@ -279,7 +279,7 @@ export default function SignupPage() {
                   value={formData.companyName}
                   onChange={handleInputChange}
                 />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                <div className="absolute inset-0 rounded-xl bg-linear-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
             )}
 
@@ -341,7 +341,7 @@ export default function SignupPage() {
 
                 {/* Profile Image Upload */}
                 <div className="flex items-center space-x-4">
-                  <div className="flex-shrink-0">
+                  <div className="shrink-0">
                     {profilePreview ? (
                       <Image
                         src={profilePreview}
@@ -392,7 +392,7 @@ export default function SignupPage() {
 
                 {/* Company Logo Upload */}
                 <div className="flex items-center space-x-4">
-                  <div className="flex-shrink-0">
+                  <div className="shrink-0">
                     {logoPreview ? (
                       <Image
                         src={logoPreview}
@@ -448,7 +448,7 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-linear-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
             >
               {loading ? "Creating Account..." : "Create Account"}
             </button>
