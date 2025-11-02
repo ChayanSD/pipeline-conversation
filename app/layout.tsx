@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { UserProvider } from "@/contexts/UserContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { getSession } from "@/lib/session";
-import ClientLayout from "@/components/ClientLayout";
+import Sidebar from "@/components/Sidebar";
 
 
 export const metadata: Metadata = {
@@ -17,11 +19,18 @@ export default async function RootLayout({
   const session = await getSession();
 
   return (
-    <html lang="en">
-      <body>
-        <ClientLayout session={session}>
-          {children}
-        </ClientLayout>
+    <html lang="en" >
+      <body >
+        <UserProvider user={session}>
+          <ThemeProvider>
+            <div className="flex h-screen ">
+              <Sidebar />
+              <main className="flex-1 overflow-auto ">
+                {children}
+              </main>
+            </div>
+          </ThemeProvider>
+        </UserProvider>
       </body>
     </html>
   );
