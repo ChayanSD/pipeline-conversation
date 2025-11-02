@@ -10,30 +10,6 @@ export type SessionUser = Omit<User, "passCode"> & {
   company?: Pick<Company, "id" | "name" | "logoUrl">;
 };
 
-// export async function createSession(user: User): Promise<string> {
-//   const sessionId = nanoid();
-//   const sessionData: SessionUser = {
-//     id: user.id,
-//     name: user.name,
-//     email: user.email,
-//     companyId: user.companyId,
-//     primaryColor: user.primaryColor,
-//     secondaryColor: user.secondaryColor,
-//     profileImageUrl: user.profileImageUrl,
-
-//     role: user.role,
-//     createdAt: user.createdAt,
-//     updatedAt: user.updatedAt,
-//   };
-
-//   await redis.setex(
-//     `session:${sessionId}`,
-//     SESSION_TTL,
-//     JSON.stringify(sessionData)
-//   );
-
-//   return sessionId;
-// }
 export async function createSession(user: SessionUser): Promise<string> {
   const sessionId = nanoid();
 

@@ -65,7 +65,7 @@ export default function SigninPage() {
                 </svg>
               </div>
             </div>
-            <h2 className="text-5xl font-extrabold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-3 tracking-tight">
+            <h2 className="text-5xl font-extrabold bg-linear-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-3 tracking-tight">
               Sign In
             </h2>
             <p className="text-slate-300 text-base font-medium">
@@ -87,7 +87,7 @@ export default function SigninPage() {
                 value={formData.email}
                 onChange={handleInputChange}
               />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              <div className="absolute inset-0 rounded-xl bg-linear-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
             </div>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
@@ -102,7 +102,7 @@ export default function SigninPage() {
                 value={formData.passCode}
                 onChange={handleInputChange}
               />
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              <div className="absolute inset-0 rounded-xl bg-linear-to-r from-cyan-400/20 to-purple-400/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
             </div>
           </div>
 
