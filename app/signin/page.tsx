@@ -34,8 +34,9 @@ export default function SigninPage() {
       } else {
         setMessage(response.data.error || 'Login failed');
       }
-    } catch (error: any) {
-      setMessage(error.response?.data?.error || 'An error occurred');
+    } catch (error : unknown) {
+      const axiosError = error as { response?: { data?: { error?: string } } };
+      setMessage(axiosError.response?.data?.error || 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -122,7 +123,7 @@ export default function SigninPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-b from-yellow-400 to-yellow-500 text-gray-800 font-semibold py-2 rounded-lg shadow-md hover:opacity-90 transition-all disabled:opacity-70"
+              className="w-full bg-linear-to-b from-yellow-400 to-yellow-500 text-gray-800 font-semibold py-2 rounded-lg shadow-md hover:opacity-90 transition-all disabled:opacity-70"
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
