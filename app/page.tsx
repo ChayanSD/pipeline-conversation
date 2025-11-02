@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import notFoundImg from "@/public/notFound.png";
 import Image from "next/image";
+
 export default function Home() {
   const { user } = useUser();
   const router = useRouter();
@@ -66,7 +67,7 @@ export default function Home() {
             Start your first audit to see your performance insights here.
             </p>
             <button
-              onClick={() => (window.location.href = "/add-new-audit/?category=1")}
+              onClick={() => router.push("/add-new-audit/?category=1")}
               className="w-[318px] mt-4 h-[50px] text-black font-medium transition-colors font-acumin cursor-pointer rounded-full"
               style={{
                 padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)',
@@ -117,7 +118,7 @@ export default function Home() {
                 manage users, tests, and categories.
               </p>
               <button
-                onClick={() => (window.location.href = "/dashboard")}
+                onClick={() => router.push("/dashboard")}
                 className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-md font-medium transition-colors font-acumin"
                 style={{
                   padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)',
