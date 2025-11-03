@@ -16,10 +16,6 @@ export interface User {
 export interface Presentation {
   id: string;
   userId: string;
-  user: {
-    name: string;
-    email: string;
-  };
   title: string;
   categories: Category[];
   tests: Test[];
