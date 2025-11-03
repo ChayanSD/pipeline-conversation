@@ -1,9 +1,23 @@
 import axios from 'axios';
 import { Presentation, Category, Question, CategoryScore } from './types';
+import { AuditCreateData } from '@/validation/audit.validation';
 
 const api = axios.create({
   baseURL: '/api',
 });
+
+// Audit APIS
+export const auditApi = {
+  getAll: async (): Promise<Presentation[]> => {
+    const response = await api.get('/audit');
+    return response.data.data;
+  },
+
+  create: async (data: AuditCreateData)=> {
+    const response = await api.post('/audit', data);
+    return response.data.data;
+  },
+};
 
 // Presentation APIs
 export const presentationApi = {
