@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { presentationApi, categoryApi, questionApi } from "@/lib/api";
 
 type OptionState = { text: string; points: number };
@@ -12,6 +12,9 @@ interface AddNewAuditProps {
 
 export default function AddNewAudit({ userId }: AddNewAuditProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentCategory = parseInt(searchParams.get('category') || '1', 10);
+  
   const [title, setTitle] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,48 +37,74 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
   }, []);
 
   const buildAuditData = useMemo(() => {
-    const defaultOptions: OptionState[] = Array.from({ length: 5 }, (_, i) => ({ text: `Option ${i + 1}`, points: i + 1 }));
-    const questionTextByIndex: Record<number, string> = {};
-    for (let i = 0; i < 10; i++) {
-      const rowIndex = i + 1;
-      const found = tableQuestions.find(q => q.index === rowIndex)?.text?.trim();
-      questionTextByIndex[rowIndex] = found && found.length > 0 ? found : `Question ${rowIndex.toString().padStart(2, '0')}`;
+    const merged: { title?: string; categories?: Array<{ name?: string; questions: Array<Partial<{ text: string; options: OptionState[] }>> }>; } = {};
+
+    // Start from any previously saved auditData (to keep other categories intact)
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = sessionStorage.getItem('auditData');
+        if (raw) {
+          const prev = JSON.parse(raw);
+          if (prev && typeof prev === 'object') {
+            if (typeof prev.title === 'string') merged.title = prev.title;
+            if (Array.isArray(prev.categories)) merged.categories = prev.categories;
+          }
+        }
+      } catch {}
     }
 
-    const categoriesData = Array.from({ length: 7 }, (_, catIdx) => ({
-      name: `Category ${catIdx + 1}`,
-      questions: Array.from({ length: 10 }, (_, qIdx) => {
-        const rowIndex = qIdx + 1;
-        const labelArray = statusMap[rowIndex];
-        const optsFromStatus: OptionState[] | null = Array.isArray(labelArray) && labelArray.length === 5
-          ? labelArray.map((t, i) => ({ text: (t || `Option ${i + 1}`).trim(), points: i + 1 }))
-          : null;
-        const useOptions = optsFromStatus || defaultOptions;
-        return {
-          text: questionTextByIndex[rowIndex],
-          options: useOptions,
-        };
-      })
-    }));
+    const trimmedTitle = title.trim();
+    if (trimmedTitle) merged.title = trimmedTitle;
 
-    return {
-      title: title.trim(),
-      categories: categoriesData,
-    };
-  }, [title, tableQuestions, statusMap]);
+    // Determine if any per-row inputs exist for current category
+    const hasAnyQuestion = tableQuestions.some(q => (q.text?.trim()?.length || 0) > 0);
+    const hasAnyStatus = Object.keys(statusMap).length > 0;
+
+    // Build the current category questions snapshot (even if empty, we will only write if there is something)
+    const questions: Array<Partial<{ text: string; options: OptionState[] }>> = [];
+    for (let qIdx = 0; qIdx < 10; qIdx++) {
+      const rowIndex = qIdx + 1;
+      const qText = tableQuestions.find(q => q.index === rowIndex)?.text?.trim();
+      const labels = statusMap[rowIndex];
+      const question: Partial<{ text: string; options: OptionState[] }> = {};
+      if (qText) question.text = qText;
+      if (Array.isArray(labels) && labels.length === 5) {
+        question.options = labels.map((t, i) => ({ text: (t || `Option ${i + 1}`).trim(), points: i + 1 }));
+      }
+      questions.push(question);
+    }
+
+    // If current category has anything, merge it into the categories array at its index
+    if (hasAnyQuestion || hasAnyStatus) {
+      const idx = Math.max(0, currentCategory - 1);
+      const existingCategories = Array.isArray(merged.categories) ? [...merged.categories] : [];
+      // Ensure array has enough length
+      while (existingCategories.length < idx + 1) existingCategories.push({ name: `Category ${existingCategories.length + 1}`, questions: [] });
+      existingCategories[idx] = {
+        name: existingCategories[idx]?.name || `Category ${currentCategory}`,
+        questions,
+      };
+      merged.categories = existingCategories;
+    }
+
+    return merged;
+  }, [title, tableQuestions, statusMap, currentCategory]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const data = buildAuditData;
       sessionStorage.setItem('auditData', JSON.stringify(data));
-      data.categories.forEach((cat, idx) => {
-        sessionStorage.setItem(`auditData:category:${idx + 1}`, JSON.stringify(cat));
-      });
+      if (Array.isArray(data.categories)) {
+        data.categories.forEach((cat, i) => {
+          const categoryNumber = i + 1;
+          sessionStorage.setItem(`auditData:category:${categoryNumber}`, JSON.stringify(cat));
+        });
+      }
     } catch (e) {
       console.error(e);
     }
-  }, [buildAuditData]);
+  }, [buildAuditData, currentCategory]);
 
   const handleCreate = async () => {
     setError(null);
@@ -99,25 +128,35 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
       // Persist to sessionStorage (whole audit and per-category)
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('auditData', JSON.stringify(auditData));
-        auditData.categories.forEach((cat, idx) => {
-          sessionStorage.setItem(`auditData:category:${idx + 1}`, JSON.stringify(cat));
-        });
+        if (Array.isArray(auditData.categories)) {
+          auditData.categories.forEach((cat, i) => {
+            const categoryNumber = i + 1;
+            sessionStorage.setItem(`auditData:category:${categoryNumber}`, JSON.stringify(cat));
+          });
+        }
       }
 
       setSubmitting(true);
 
-      // Keep existing API persistence
-      const presentation = await presentationApi.create({ userId, title: title.trim() });
+      // Keep API persistence, driven by the current auditData shape
+      const presentation = await presentationApi.create({ userId, title: (auditData.title || title).trim() });
       const categoryIds: string[] = [];
-      for (let i = 0; i < 7; i++) {
-        const createdCategory = await categoryApi.create({ presentationId: presentation.id, name: auditData.categories[i].name });
-        categoryIds.push(createdCategory.id);
-      }
-
-      for (let catIdx = 0; catIdx < auditData.categories.length; catIdx++) {
-        const cat = auditData.categories[catIdx];
-        for (const q of cat.questions) {
-          await questionApi.create({ text: q.text, categoryId: categoryIds[catIdx], options: q.options });
+      if (Array.isArray(auditData.categories)) {
+        for (let i = 0; i < auditData.categories.length; i++) {
+          const createdCategory = await categoryApi.create({ presentationId: presentation.id, name: auditData.categories[i].name || `Category ${i + 1}` });
+          categoryIds.push(createdCategory.id);
+        }
+        const catLen = Array.isArray(auditData.categories) ? auditData.categories.length : 0;
+        for (let catIdx = 0; catIdx < catLen; catIdx++) {
+          const cat = (auditData.categories as { questions: { text?: string; options?: OptionState[] }[] }[])[catIdx];
+          for (const q of cat.questions) {
+            const text = q.text?.trim();
+            if (!text) continue;
+            const options = Array.isArray(q.options) && q.options.length === 5
+              ? q.options
+              : Array.from({ length: 5 }, (_, i) => ({ text: `Option ${i + 1}`, points: i + 1 }));
+            await questionApi.create({ text, categoryId: categoryIds[catIdx], options });
+          }
         }
       }
 
@@ -180,21 +219,21 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Presentation Name"
-              className="w-full bg-[#4569871A]  text-[22px] px-8 py-[18px] border border-[#3b5163] rounded-xl outline-none"
+              className="w-full bg-[#4569871A]  text-[18px] px-6 py-[12px] border border-[#3b5163] rounded-xl outline-none"
             />
           </div>
-          <div className="w-px h-[30px] bg-[#3b5163] mx-7"></div>
-          <div className="flex gap-4">
+          <div className="w-px h-0 bg-[#3b5163] mx-7"></div>
+          <div className="flex gap-3">
             <button
               onClick={() => router.push("/dashboard")}
-              className="px-[26px] py-[18px] bg-[#CECECE] hover:bg-[#CECECE]/80 transition-all duration-300 rounded-full text-[22px] tracking-[0.352px] leading-normal cursor-pointer"
+              className="px-[20px] py-[12px] bg-[#CECECE] hover:bg-[#CECECE]/80 transition-all duration-300 rounded-full text-[18px] tracking-[0.352px] leading-normal cursor-pointer"
             >
               Back to List
             </button>
             <button
               onClick={handleCreate}
               disabled={submitting}
-              className="px-[26px] w-[266px] py-[18px] bg-[#F7AF41] hover:bg-[#F7AF41]/80 disabled:opacity-60 transition-all duration-300 rounded-full text-[22px] tracking-[0.352px] leading-normal cursor-pointer"
+              className="px-[20px] w-[200px] py-[12px] bg-[#F7AF41] hover:bg-[#F7AF41]/80 disabled:opacity-60 transition-all duration-300 rounded-full text-[18px] tracking-[0.352px] leading-normal cursor-pointer"
             >
               {submitting ? "Creating..." : "Create Audit"}
             </button>
@@ -210,6 +249,7 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
 
         <div className="mt-8">
           <AuditTable
+            currentCategory={currentCategory}
             onQuestionsChange={setTableQuestions}
             onStatusChange={(rowIndex, labels) => setStatusMap(prev => ({ ...prev, [rowIndex]: labels }))}
           />
@@ -220,36 +260,36 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
 }
 
 interface AuditTableProps {
+  currentCategory: number;
   onQuestionsChange?: (questions: { index: number; text: string }[]) => void;
   onStatusChange?: (rowIndex: number, labels: string[]) => void;
 }
 
-function AuditTable({ onQuestionsChange, onStatusChange }: AuditTableProps) {
+function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: AuditTableProps) {
   const [activeRows, setActiveRows] = useState<Set<number>>(new Set());
   const [questions, setQuestions] = useState<{ [key: number]: string }>({});
   const [statusLabels, setStatusLabels] = useState<Record<number, string[]>>({});
 
-  // Hydrate questions and status labels from sessionStorage on mount
+  // Hydrate questions and status labels from sessionStorage on mount or category change
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      // Questions per row 1..10
+      // Questions per row 1..10 for current category
       const qInit: { [key: number]: string } = {};
       for (let i = 1; i <= 10; i++) {
-        const qs = sessionStorage.getItem(`auditData:question:${i}`);
+        const qs = sessionStorage.getItem(`auditData:question:${currentCategory}:${i}`);
         if (qs && typeof qs === 'string' && qs.length > 0) {
           qInit[i] = qs;
         }
       }
 
-      // If not present, try from auditData (category 1 questions)
+      // If not present, try from auditData (specific category)
       if (Object.keys(qInit).length === 0) {
-        const raw = sessionStorage.getItem('auditData');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const firstCat = parsed?.categories?.[0];
-          if (firstCat?.questions?.length) {
-            firstCat.questions.forEach((q: { text?: string }, idx: number) => {
+        const categoryData = sessionStorage.getItem(`auditData:category:${currentCategory}`);
+        if (categoryData) {
+          const parsed = JSON.parse(categoryData);
+          if (parsed?.questions?.length) {
+            parsed.questions.forEach((q: { text?: string }, idx: number) => {
               const rowIndex = idx + 1;
               if (q?.text) qInit[rowIndex] = String(q.text);
             });
@@ -257,28 +297,25 @@ function AuditTable({ onQuestionsChange, onStatusChange }: AuditTableProps) {
         }
       }
 
-      if (Object.keys(qInit).length > 0) {
-        setQuestions(qInit);
-      }
+      setQuestions(qInit);
 
-      // Status labels (options) per row 1..10
+      // Status labels (options) per row 1..10 for current category
       const statusInit: Record<number, string[]> = {};
       for (let i = 1; i <= 10; i++) {
-        const st = sessionStorage.getItem(`auditData:status:${i}`);
+        const st = sessionStorage.getItem(`auditData:status:${currentCategory}:${i}`);
         if (st) {
           const arr = JSON.parse(st) as unknown;
           if (Array.isArray(arr) && arr.length) statusInit[i] = (arr as unknown[]).map((v) => String(v));
         }
       }
 
-      // If not present, try from auditData options of category 1
+      // If not present, try from auditData options of specific category
       if (Object.keys(statusInit).length === 0) {
-        const raw = sessionStorage.getItem('auditData');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const firstCat = parsed?.categories?.[0];
-          if (firstCat?.questions?.length) {
-            firstCat.questions.forEach((q: { options?: { text?: string }[] }, idx: number) => {
+        const categoryData = sessionStorage.getItem(`auditData:category:${currentCategory}`);
+        if (categoryData) {
+          const parsed = JSON.parse(categoryData);
+          if (parsed?.questions?.length) {
+            parsed.questions.forEach((q: { options?: { text?: string }[] }, idx: number) => {
               const rowIndex = idx + 1;
               if (Array.isArray(q?.options) && q.options.length) {
                 statusInit[rowIndex] = q.options.map((o: { text?: string }) => String(o?.text ?? ''));
@@ -288,11 +325,18 @@ function AuditTable({ onQuestionsChange, onStatusChange }: AuditTableProps) {
         }
       }
 
-      if (Object.keys(statusInit).length > 0) {
-        setStatusLabels(statusInit);
+      setStatusLabels(statusInit);
+
+      // Auto-activate rows that have restored content (question or status)
+      const rowsToActivate = new Set<number>();
+      for (let i = 1; i <= 10; i++) {
+        const hasQ = typeof qInit[i] === 'string' && qInit[i].trim().length > 0;
+        const hasS = Array.isArray(statusInit[i]) && statusInit[i].length > 0;
+        if (hasQ || hasS) rowsToActivate.add(i);
       }
+      setActiveRows(rowsToActivate);
     } catch {}
-  }, []);
+  }, [currentCategory]);
 
   useEffect(() => {
     if (!onQuestionsChange) return;
@@ -327,7 +371,7 @@ function AuditTable({ onQuestionsChange, onStatusChange }: AuditTableProps) {
     });
     try {
       if (typeof window !== 'undefined') {
-        const key = `auditData:status:${rowIndex}`;
+        const key = `auditData:status:${currentCategory}:${rowIndex}`;
         const current = statusLabels[rowIndex] ? [...statusLabels[rowIndex]] : statusButtons.map(s => s.label);
         current[idx] = value;
         sessionStorage.setItem(key, JSON.stringify(current));
@@ -343,9 +387,21 @@ function AuditTable({ onQuestionsChange, onStatusChange }: AuditTableProps) {
     }));
     try {
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem(`auditData:question:${rowIndex}`, value);
+        sessionStorage.setItem(`auditData:question:${currentCategory}:${rowIndex}`, value);
       }
     } catch {}
+
+    // Auto-add options for this question if not present yet, using current status labels (defaults)
+    if (!statusLabels[rowIndex] || statusLabels[rowIndex].length !== 5) {
+      const defaults = statusButtons.map(s => s.label);
+      setStatusLabels(prev => ({ ...prev, [rowIndex]: defaults }));
+      try {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(`auditData:status:${currentCategory}:${rowIndex}`, JSON.stringify(defaults));
+        }
+      } catch {}
+      onStatusChange?.(rowIndex, defaults);
+    }
   };
 
   const statusButtons = [
@@ -409,5 +465,3 @@ function AuditTable({ onQuestionsChange, onStatusChange }: AuditTableProps) {
     </div>
   )
 }
-
-

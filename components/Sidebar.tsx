@@ -73,7 +73,7 @@ export default function Sidebar() {
 
   return (
     <div 
-      className="w-75  flex flex-col h-full relative" 
+      className="w-75  flex flex-col h-screen overflow-y-auto relative" 
       style={{ 
         width: '300px',
         backgroundImage: 'url(/bg-img.png)',
