@@ -59,7 +59,7 @@ export default function AuditTable() {
                     placeholder={`Question ${rowIndex.toString().padStart(2, '0')}`}
                     onClick={() => handleQuestionClick(rowIndex)}
                     onChange={(e) => handleQuestionChange(rowIndex, e.target.value)}
-                    className="w-full bg-[#4569871A] px-4 py-2 border border-[#3b5163] rounded-[12px] outline-none"
+                    className="w-full bg-[#4569871A] px-4 py-2 border border-[#3b5163] rounded-xl outline-none"
                   />
                 </td>
                 

@@ -108,7 +108,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           name,
           email: email!,
           passCode: hashedPass,
-          role: "ADMIN",
+          role: "USER",
           primaryColor: primaryColor ?? "#000000",
           secondaryColor: secondaryColor ?? "#FFFFFF",
           profileImageUrl,
