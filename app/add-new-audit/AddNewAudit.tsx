@@ -16,6 +16,7 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
   const currentCategory = parseInt(searchParams.get('category') || '1', 10);
   
   const [title, setTitle] = useState("");
+  const [categoryName, setCategoryName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -35,6 +36,50 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
       }
     } catch {}
   }, []);
+
+  // Hydrate category name from sessionStorage on mount or category change
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const loadCategoryName = () => {
+      try {
+        // Try to get from specific category name storage
+        const storedName = sessionStorage.getItem(`auditData:categoryName:${currentCategory}`);
+        if (storedName) {
+          setCategoryName(storedName);
+        } else {
+          // Try to get from auditData categories array
+          const raw = sessionStorage.getItem('auditData');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed?.categories)) {
+              const cat = parsed.categories[currentCategory - 1];
+              if (cat?.name) {
+                setCategoryName(cat.name);
+              } else {
+                setCategoryName(`Category ${currentCategory}`);
+              }
+            } else {
+              setCategoryName(`Category ${currentCategory}`);
+            }
+          } else {
+            setCategoryName(`Category ${currentCategory}`);
+          }
+        }
+      } catch {
+        setCategoryName(`Category ${currentCategory}`);
+      }
+    };
+
+    loadCategoryName();
+
+    // Listen for category name updates from sidebar
+    const handleCategoryNameUpdate = () => {
+      loadCategoryName();
+    };
+
+    window.addEventListener('categoryNameUpdated', handleCategoryNameUpdate);
+    return () => window.removeEventListener('categoryNameUpdated', handleCategoryNameUpdate);
+  }, [currentCategory]);
 
   const buildAuditData = useMemo(() => {
     const merged: { title?: string; categories?: Array<{ name?: string; questions: Array<Partial<{ text: string; options: OptionState[] }>> }>; } = {};
@@ -80,19 +125,24 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
       const existingCategories = Array.isArray(merged.categories) ? [...merged.categories] : [];
       // Ensure array has enough length
       while (existingCategories.length < idx + 1) existingCategories.push({ name: `Category ${existingCategories.length + 1}`, questions: [] });
+      const finalCategoryName = categoryName.trim() || `Category ${currentCategory}`;
       existingCategories[idx] = {
-        name: existingCategories[idx]?.name || `Category ${currentCategory}`,
+        name: finalCategoryName,
         questions,
       };
       merged.categories = existingCategories;
     }
 
     return merged;
-  }, [title, tableQuestions, statusMap, currentCategory]);
+  }, [title, tableQuestions, statusMap, currentCategory, categoryName]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      // Save category name separately for sidebar access
+      const finalCategoryName = categoryName.trim() || `Category ${currentCategory}`;
+      sessionStorage.setItem(`auditData:categoryName:${currentCategory}`, finalCategoryName);
+      
       const data = buildAuditData;
       sessionStorage.setItem('auditData', JSON.stringify(data));
       if (Array.isArray(data.categories)) {
@@ -104,7 +154,7 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
     } catch (e) {
       console.error(e);
     }
-  }, [buildAuditData, currentCategory]);
+  }, [buildAuditData, currentCategory, categoryName]);
 
   const handleCreate = async () => {
     setError(null);
@@ -212,7 +262,7 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
         </div>
       </header>
       <main className="px-24 mt-5">
-        <div className="flex gap items-center justify-between">
+        <div className="flex gap items-center justify-between mb-4">
           <div className="flex-1">
             <input
               type="text"

@@ -6,12 +6,138 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import Image from 'next/image';
 import logo from '@/public/logo.png';
+import { useState, useEffect } from 'react';
+
+type NavigationItem = {
+  name: string;
+  href: string;
+  icon: React.ReactNode;
+  categoryNumber?: number;
+};
+
 export default function Sidebar() {
   const { user } = useUser();
   const { theme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [editingCategory, setEditingCategory] = useState<number | null>(null);
+  const [categoryNames, setCategoryNames] = useState<Record<number, string>>({});
+
+  // Load category names from sessionStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const loadCategoryNames = () => {
+      const names: Record<number, string> = {};
+      for (let i = 1; i <= 7; i++) {
+        try {
+          const storedName = sessionStorage.getItem(`auditData:categoryName:${i}`);
+          if (storedName && storedName.trim()) {
+            names[i] = storedName;
+          } else {
+            // Try to get from auditData categories array
+            const raw = sessionStorage.getItem('auditData');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed?.categories)) {
+                const cat = parsed.categories[i - 1];
+                if (cat?.name) {
+                  names[i] = cat.name;
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+      setCategoryNames(names);
+    };
+
+    loadCategoryNames();
+
+    // Listen for storage changes from other components (cross-tab)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key?.startsWith('auditData:categoryName:')) {
+        loadCategoryNames();
+      }
+    };
+
+    // Listen for custom event from same tab (when sidebar updates category name)
+    const handleCategoryNameUpdate = () => {
+      loadCategoryNames();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('categoryNameUpdated', handleCategoryNameUpdate);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('categoryNameUpdated', handleCategoryNameUpdate);
+    };
+  }, []);
+
+  // Helper to get category name
+  const getCategoryName = (categoryNumber: number): string => {
+    if (categoryNames[categoryNumber]) {
+      return categoryNames[categoryNumber];
+    }
+    if (typeof window === 'undefined') return `Category ${categoryNumber}`;
+    try {
+      const storedName = sessionStorage.getItem(`auditData:categoryName:${categoryNumber}`);
+      if (storedName && storedName.trim()) {
+        return storedName;
+      }
+      const raw = sessionStorage.getItem('auditData');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.categories)) {
+          const cat = parsed.categories[categoryNumber - 1];
+          if (cat?.name) {
+            return cat.name;
+          }
+        }
+      }
+    } catch {}
+    return `Category ${categoryNumber}`;
+  };
+
+  // Handle category name update
+  const handleCategoryNameUpdate = (categoryNumber: number, newName: string) => {
+    const finalName = newName.trim() || `Category ${categoryNumber}`;
+    
+    // Update state
+    setCategoryNames(prev => ({ ...prev, [categoryNumber]: finalName }));
+    
+    // Update sessionStorage
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, finalName);
+      
+      // Also update auditData categories array
+      try {
+        const raw = sessionStorage.getItem('auditData');
+        const data = raw ? JSON.parse(raw) : { categories: [] };
+        if (!Array.isArray(data.categories)) data.categories = [];
+        
+        const idx = categoryNumber - 1;
+        while (data.categories.length < categoryNumber) {
+          data.categories.push({ name: `Category ${data.categories.length + 1}`, questions: [] });
+        }
+        
+        if (data.categories[idx]) {
+          data.categories[idx].name = finalName;
+        } else {
+          data.categories[idx] = { name: finalName, questions: [] };
+        }
+        
+        sessionStorage.setItem('auditData', JSON.stringify(data));
+        
+        // Dispatch custom event to notify other components
+        window.dispatchEvent(new Event('categoryNameUpdated'));
+      } catch (e) {
+        console.error('Error updating category name:', e);
+      }
+    }
+    
+    setEditingCategory(null);
+  };
 
   const handleLogout = async () => {
     try {
@@ -27,7 +153,7 @@ export default function Sidebar() {
     return null;
   }
 
-  const navigationItems = [
+  const navigationItems: NavigationItem[] = [
     {
       name: 'ALL AUDITS',
       href: '/',
@@ -56,15 +182,19 @@ export default function Sidebar() {
   let effectiveItems = navigationItems;
   const onNewAuditPage = pathname === '/add-new-audit';
   if (onNewAuditPage) {
-    const categoryItems = Array.from({ length: 7 }, (_, i) => ({
-      name: `Category ${i + 1}`,
-      href: `/add-new-audit?category=${i + 1}`,
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2 2h10a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-        </svg>
-      ),
-    }));
+    const categoryItems = Array.from({ length: 7 }, (_, i) => {
+      const categoryNumber = i + 1;
+      return {
+        categoryNumber,
+        name: getCategoryName(categoryNumber),
+        href: `/add-new-audit?category=${categoryNumber}`,
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2 2h10a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+          </svg>
+        ),
+      };
+    });
 
     // Remove ALL AUDITS from the list and prepend categories
     const [, ...rest] = navigationItems;
@@ -122,31 +252,75 @@ export default function Sidebar() {
         {effectiveItems.map((item) => {
           // Active state: exact match for regular links; for category links, match by query param
           let isActive = pathname === item.href;
+          const isCategoryItem = 'categoryNumber' in item && typeof item.categoryNumber === 'number';
+          const itemCategoryNumber = isCategoryItem && item.categoryNumber !== undefined ? item.categoryNumber : null;
           if (onNewAuditPage && item.href.startsWith('/add-new-audit')) {
             const currentCategory = searchParams.get('category');
             const itemCategory = new URLSearchParams(item.href.split('?')[1]).get('category');
             isActive = currentCategory === itemCategory;
           }
           const useSecondary = onNewAuditPage && item.href.startsWith('/add-new-audit');
+          const isEditing = itemCategoryNumber !== null && editingCategory === itemCategoryNumber;
+          
           return (
-            <button
+            <div
               key={item.name}
-              onClick={() => router.push(item.href)}
-              className={`ml-4 h-[42px] cursor-pointer flex items-center text-black ${
+              className={`ml-4 h-[42px] flex items-center ${
                 isActive 
                   ? 'w-[94.5%] mr-0 rounded-l-xl'  
-                  : 'w-[88%] rounded-xl hover:bg-gray-100 hover:text-gray-900'
+                  : 'w-[88%] rounded-xl'
               }`}
               style={{
                 padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(0.75rem, 3vw, 1rem)',
                 marginLeft: 'clamp(0.75rem, 2vw, 1rem)',
                 backgroundColor: useSecondary ? theme.secondary : 'white',
-                  color: isActive ? (useSecondary ? 'white' : 'black') : (useSecondary ? '#76899B' : theme.primary),
-                  border:  (useSecondary ? '2px solid #76899B' : 'none') ,
+                color: isActive ? (useSecondary ? 'white' : 'black') : (useSecondary ? '#76899B' : theme.primary),
+                border: (useSecondary ? '2px solid #76899B' : 'none'),
               }}
             >
-              {item.name}
-            </button>
+              {isEditing && itemCategoryNumber !== null ? (
+                <input
+                  type="text"
+                  defaultValue={getCategoryName(itemCategoryNumber)}
+                  autoFocus
+                  onBlur={(e) => {
+                    if (itemCategoryNumber !== null) {
+                      handleCategoryNameUpdate(itemCategoryNumber, e.target.value);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (itemCategoryNumber !== null) {
+                      if (e.key === 'Enter') {
+                        handleCategoryNameUpdate(itemCategoryNumber, e.currentTarget.value);
+                      } else if (e.key === 'Escape') {
+                        setEditingCategory(null);
+                      }
+                    }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full bg-transparent border border-white/50 rounded px-2 py-1 outline-none"
+                  style={{ color: 'inherit' }}
+                />
+              ) : (
+                <button
+                  onDoubleClick={(e) => {
+                    if (itemCategoryNumber !== null && onNewAuditPage) {
+                      e.stopPropagation();
+                      setEditingCategory(itemCategoryNumber);
+                    }
+                  }}
+                  onClick={() => {
+                    if (!isEditing) {
+                      router.push(item.href);
+                    }
+                  }}
+                  className="w-full h-full cursor-pointer flex items-center text-left"
+                  style={{ color: 'inherit' }}
+                >
+                  {item.name}
+                </button>
+              )}
+            </div>
           );
         })}
       </nav>
