@@ -4,7 +4,7 @@ import { useUser } from "@/contexts/UserContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import notFoundImg from "@/public/notFound.png";
+import notFoundImg from "@/public/notFound2.png";
 import Image from "next/image";
 import AddNewAudit from "@/components/AddNewAudit/AddNewAudit";
 
