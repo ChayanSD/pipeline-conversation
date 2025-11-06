@@ -91,6 +91,31 @@ export default function Home() {
     setDeleteModalOpen(true);
   };
 
+  const clearAuditSessionStorage = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      // Clear main audit data
+      sessionStorage.removeItem('auditData');
+      
+      // Clear all category-related data
+      for (let i = 1; i <= 7; i++) {
+        sessionStorage.removeItem(`auditData:category:${i}`);
+        sessionStorage.removeItem(`auditData:categoryName:${i}`);
+        
+        // Clear all question and status data for each category
+        for (let j = 1; j <= 10; j++) {
+          sessionStorage.removeItem(`auditData:question:${i}:${j}`);
+          sessionStorage.removeItem(`auditData:status:${i}:${j}`);
+        }
+      }
+      
+      // Dispatch event to update sidebar
+      window.dispatchEvent(new Event('categoryNameUpdated'));
+    } catch (error) {
+      console.error("Error clearing sessionStorage:", error);
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!auditToDelete) return;
     
@@ -151,7 +176,10 @@ export default function Home() {
                   padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)',
                   fontSize: 'clamp(0.875rem, 2.5vw, 1rem)'
                 }}
-                onClick={() => router.push("/add-new-audit/?category=1")}
+                onClick={() => {
+                  clearAuditSessionStorage();
+                  router.push("/add-new-audit/?category=1");
+                }}
               >
                 Start New Audit
               </CustomButton>
@@ -177,7 +205,10 @@ export default function Home() {
           <CustomButton
             variant="primary"
             size="lg"
-            onClick={() => router.push("/add-new-audit/?category=1")}
+            onClick={() => {
+              clearAuditSessionStorage();
+              router.push("/add-new-audit/?category=1");
+            }}
           >
             Create New AUDIT
           </CustomButton>
@@ -217,7 +248,7 @@ export default function Home() {
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => router.push(`/add-new-audit/?edit=${audit.id}`)}
+                        onClick={() => router.push(`/update-audit/?edit=${audit.id}&category=1`)}
                         className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 flex items-center gap-1"
                       >
                         <Edit size={14} />

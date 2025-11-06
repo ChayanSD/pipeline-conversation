@@ -194,16 +194,22 @@ export default function Sidebar() {
   //   });
   // }
 
-  // When on add-new-audit, show Category 1-7 and hide ALL AUDITS button
+  // When on add-new-audit or update-audit, show Category 1-7 and hide ALL AUDITS button
   let effectiveItems = navigationItems;
   const onNewAuditPage = pathname === '/add-new-audit';
-  if (onNewAuditPage) {
+  const onUpdateAuditPage = pathname === '/update-audit';
+  if (onNewAuditPage || onUpdateAuditPage) {
+    const editId = searchParams.get('edit');
+    const basePath = onNewAuditPage ? '/add-new-audit' : '/update-audit';
     const categoryItems = Array.from({ length: 7 }, (_, i) => {
       const categoryNumber = i + 1;
+      const query = new URLSearchParams();
+      if (onUpdateAuditPage && editId) query.set('edit', editId);
+      query.set('category', String(categoryNumber));
       return {
         categoryNumber,
         name: getCategoryName(categoryNumber),
-        href: `/add-new-audit?category=${categoryNumber}`,
+        href: `${basePath}?${query.toString()}`,
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2 2h10a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
@@ -245,7 +251,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="pt-4" style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
-        {onNewAuditPage && (
+        {(onNewAuditPage || onUpdateAuditPage) && (
           <div className="px-4 text-center font-medium text-[#fffef7]" style={{ marginBottom: 'clamp(0.25rem, 1vw, 0.5rem)' }}>
             ALL AUDITS
           </div>
@@ -255,12 +261,12 @@ export default function Sidebar() {
           let isActive = pathname === item.href;
           const isCategoryItem = 'categoryNumber' in item && typeof item.categoryNumber === 'number';
           const itemCategoryNumber = isCategoryItem && item.categoryNumber !== undefined ? item.categoryNumber : null;
-          if (onNewAuditPage && item.href.startsWith('/add-new-audit')) {
+          if ((onNewAuditPage && item.href.startsWith('/add-new-audit')) || (onUpdateAuditPage && item.href.startsWith('/update-audit'))) {
             const currentCategory = searchParams.get('category');
             const itemCategory = new URLSearchParams(item.href.split('?')[1]).get('category');
             isActive = currentCategory === itemCategory;
           }
-          const useSecondary = onNewAuditPage && item.href.startsWith('/add-new-audit');
+          const useSecondary = ((onNewAuditPage && item.href.startsWith('/add-new-audit')) || (onUpdateAuditPage && item.href.startsWith('/update-audit')));
           const isEditing = itemCategoryNumber !== null && editingCategory === itemCategoryNumber;
           
           return (
@@ -305,7 +311,7 @@ export default function Sidebar() {
               ) : (
                 <button
                   onDoubleClick={(e) => {
-                    if (itemCategoryNumber !== null && onNewAuditPage) {
+                    if (itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage)) {
                       e.stopPropagation();
                       setEditingCategory(itemCategoryNumber);
                     }
