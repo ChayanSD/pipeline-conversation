@@ -268,7 +268,7 @@ export default function TestPresentation() {
           </div>
 
           {/* Score Interpretation Blocks */}
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className=" grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Block 1: Low Score */}
             <div className="bg-red-100 border border-red-300 rounded-xl p-4">
               <h3 className="text-lg font-semibold text-red-800 mb-2">Score: 0 - 40</h3>
