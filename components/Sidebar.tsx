@@ -1,7 +1,6 @@
 'use client';
 
 import { useUser } from '@/contexts/UserContext';
-import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import Image from 'next/image';
@@ -17,12 +16,29 @@ type NavigationItem = {
 
 export default function Sidebar() {
   const { user } = useUser();
-  const { theme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [editingCategory, setEditingCategory] = useState<number | null>(null);
   const [categoryNames, setCategoryNames] = useState<Record<number, string>>({});
+
+  // Helper function to convert hex to rgba with opacity (same as BackgroundWrapper)
+  const hexToRgba = (hex: string, opacity: number): string => {
+    const cleanHex = hex.replace('#', '');
+    let fullHex = cleanHex;
+    if (cleanHex.length === 3) {
+      fullHex = cleanHex.split('').map(char => char + char).join('');
+    }
+    if (fullHex.length !== 6) return hex;
+    const r = parseInt(fullHex.substring(0, 2), 16);
+    const g = parseInt(fullHex.substring(2, 4), 16);
+    const b = parseInt(fullHex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  };
+
+  // Get user's primary color with opacity
+  const primaryColor = user?.primaryColor || '#2B4055';
+  const primaryColorWithOpacity = hexToRgba(primaryColor, 0.8); // 80% opacity for background
 
   // Load category names from sessionStorage
   useEffect(() => {
@@ -166,17 +182,17 @@ export default function Sidebar() {
     },
   ];
 
-  if (user.role === 'ADMIN') {
-    navigationItems.push({
-      name: 'Admin Dashboard',
-      href: '/dashboard',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      ),
-    });
-  }
+  // if (user.role === 'ADMIN') {
+  //   navigationItems.push({
+  //     name: 'Admin Dashboard',
+  //     href: '/dashboard',
+  //     icon: (
+  //       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  //         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  //       </svg>
+  //     ),
+  //   });
+  // }
 
   // When on add-new-audit, show Category 1-7 and hide ALL AUDITS button
   let effectiveItems = navigationItems;
@@ -206,27 +222,10 @@ export default function Sidebar() {
       className="w-75  flex flex-col h-screen overflow-y-auto relative" 
       style={{ 
         width: '300px',
-        backgroundImage: 'url(/bg-img.png)',
-        backgroundRepeat: 'repeat',
-        backgroundSize: '600px 100%',
-        backgroundPosition: '0 0',
-        position: 'relative'
+        position: 'relative',
+        backgroundColor: 'transparent'
       }}
     >
-      {/*  overlay */}
-      <div 
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(10, 155, 255, 0.3)',
-          pointerEvents: 'none',
-          zIndex: 1
-        }}
-      />
-      
       {/* Logo/Brand */}
       <div className="py-12 border-b-2 border-[#456987] flex justify-center" style={{ position: 'relative', zIndex: 2 }}>
         <Image 
@@ -243,9 +242,9 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="py-6" style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
+      <nav className="pt-4" style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
         {onNewAuditPage && (
-          <div className="px-4 text-center font-medium text-[#F7FCFF]" style={{ marginBottom: 'clamp(0.25rem, 1vw, 0.5rem)' }}>
+          <div className="px-4 text-center font-medium text-[#fffef7]" style={{ marginBottom: 'clamp(0.25rem, 1vw, 0.5rem)' }}>
             ALL AUDITS
           </div>
         )}
@@ -265,7 +264,7 @@ export default function Sidebar() {
           return (
             <div
               key={item.name}
-              className={`ml-4 h-[42px] flex items-center ${
+              className={`ml-4 h-[40px]  flex items-center ${
                 isActive 
                   ? 'w-[94.5%] mr-0 rounded-l-xl'  
                   : 'w-[88%] rounded-xl'
@@ -273,9 +272,9 @@ export default function Sidebar() {
               style={{
                 padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(0.75rem, 3vw, 1rem)',
                 marginLeft: 'clamp(0.75rem, 2vw, 1rem)',
-                backgroundColor: useSecondary ? theme.secondary : 'white',
-                color: isActive ? (useSecondary ? 'white' : 'black') : (useSecondary ? '#76899B' : theme.primary),
-                border: (useSecondary ? '2px solid #76899B' : 'none'),
+                backgroundColor: useSecondary ? primaryColorWithOpacity : 'white',
+                color: isActive ? (useSecondary ? 'white' : 'black') : (useSecondary ? '#ffffff80' : primaryColor),
+                border: (useSecondary ? '2px solid ##899AA9' : 'none'),
               }}
             >
               {isEditing && itemCategoryNumber !== null ? (
@@ -298,7 +297,7 @@ export default function Sidebar() {
                     }
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full bg-transparent border border-white/50 rounded px-2 py-1 outline-none"
+                  className="w-full bg-transparent border border-white/50 rounded px-20 py-1 outline-none"
                   style={{ color: 'inherit' }}
                 />
               ) : (
@@ -335,7 +334,7 @@ export default function Sidebar() {
               alt="Profile"
               width={180}
               height={199}
-              onClick={handleLogout}
+              // onClick={handleLogout}
               style={{
                 width: 'clamp(60px, 15vw, 244px)',
                 height: 'clamp(60px, 15vw, 269px)'

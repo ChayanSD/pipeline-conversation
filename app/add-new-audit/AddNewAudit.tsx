@@ -2,15 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { presentationApi, categoryApi, questionApi } from "@/lib/api";
+import { auditApi } from "@/lib/api";
 
 type OptionState = { text: string; points: number };
 
-interface AddNewAuditProps {
-  userId: string;
-}
-
-export default function AddNewAudit({ userId }: AddNewAuditProps) {
+export default function AddNewAudit() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentCategory = parseInt(searchParams.get('category') || '1', 10);
@@ -188,32 +184,73 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
 
       setSubmitting(true);
 
-      // Keep API persistence, driven by the current auditData shape
-      const presentation = await presentationApi.create({ userId, title: (auditData.title || title).trim() });
-      const categoryIds: string[] = [];
-      if (Array.isArray(auditData.categories)) {
-        for (let i = 0; i < auditData.categories.length; i++) {
-          const createdCategory = await categoryApi.create({ presentationId: presentation.id, name: auditData.categories[i].name || `Category ${i + 1}` });
-          categoryIds.push(createdCategory.id);
-        }
-        const catLen = Array.isArray(auditData.categories) ? auditData.categories.length : 0;
-        for (let catIdx = 0; catIdx < catLen; catIdx++) {
-          const cat = (auditData.categories as { questions: { text?: string; options?: OptionState[] }[] }[])[catIdx];
-          for (const q of cat.questions) {
-            const text = q.text?.trim();
-            if (!text) continue;
-            const options = Array.isArray(q.options) && q.options.length === 5
-              ? q.options
-              : Array.from({ length: 5 }, (_, i) => ({ text: `Option ${i + 1}`, points: i + 1 }));
-            await questionApi.create({ text, categoryId: categoryIds[catIdx], options });
-          }
-        }
+      // Transform auditData to match API format
+      const categories = (auditData.categories || [])
+        .map(cat => {
+          // Filter out empty questions and ensure each question has 5 options
+          const questions = cat.questions
+            .filter(q => q.text && q.text.trim().length > 0)
+            .map(q => ({
+              text: q.text!.trim(),
+              options: (Array.isArray(q.options) && q.options.length === 5)
+                ? q.options.map(opt => ({
+                    text: opt.text.trim(),
+                    points: opt.points
+                  }))
+                : Array.from({ length: 5 }, (_, i) => ({
+                    text: `Option ${i + 1}`,
+                    points: i + 1
+                  }))
+            }))
+            .filter(q => q.text.length > 0);
+
+          return {
+            name: cat.name || 'Category',
+            questions
+          };
+        })
+        .filter(cat => cat.questions.length > 0);
+
+      if (categories.length === 0) {
+        setError("Add at least one question in the table");
+        setSubmitting(false);
+        return;
       }
 
+      // Call single audit API with full data
+      await auditApi.create({
+        title: (auditData.title || title).trim(),
+        categories
+      });
+
       setSuccess("Audit created successfully");
+      
+      // Clear all state
       setTitle("");
+      setCategoryName("");
       setTableQuestions([]);
       setStatusMap({});
+      
+      // Clear all sessionStorage audit data after successful creation
+      if (typeof window !== 'undefined') {
+        // Clear main audit data
+        sessionStorage.removeItem('auditData');
+        
+        // Clear all category-related data
+        for (let i = 1; i <= 7; i++) {
+          sessionStorage.removeItem(`auditData:category:${i}`);
+          sessionStorage.removeItem(`auditData:categoryName:${i}`);
+          
+          // Clear all question and status data for each category
+          for (let j = 1; j <= 10; j++) {
+            sessionStorage.removeItem(`auditData:question:${i}:${j}`);
+            sessionStorage.removeItem(`auditData:status:${i}:${j}`);
+          }
+        }
+        
+        // Dispatch event to update sidebar
+        window.dispatchEvent(new Event('categoryNameUpdated'));
+      }
     } catch (e) {
       setError("Failed to create audit");
       console.error(e);
@@ -225,7 +262,7 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
   return (
     <div className="">
       <header className="">
-        <div className=" flex items-center justify-center gap-2.5 max-w-7xl mx-auto ">
+        <div className="bg-white pt-5 flex items-center justify-center gap-2.5 w-full ">
           <p className="text-[17px] uppercase font-500 tracking-[0.352px] leading-normal font-medium">GRADING SCALE (1-5)</p>
           <div className="grid grid-cols-3 gap-[1.89px]">
             <p className="w-full text-[17px] uppercase font-medium bg-[#F65355] px-[38px] py-2.5 text-white rounded-tl-xl">
@@ -239,19 +276,8 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
             </p>
           </div>
         </div>
-        <div
-          className="w-full relative z-10"
-          style={{
-            backgroundImage: "url(/bg-img.png)",
-          }}
-        >
-          <div
-            className="absolute top-0 left-0 right-0 bottom-0 -z-10"
-            style={{
-              backgroundColor: "rgba(10, 155, 255, 0.3)",
-              pointerEvents: "none",
-            }}
-          />
+       
+     
           <div className="px-24 flex items-center justify-between">
             {["questions", "answers", "score"].map((item,i) => (
               <p key={i} className={`text-[22px] text-white capitalize font-500 tracking-[0.352px] leading-normal font-medium ${i === 1 ? "ml-56":""}`}>
@@ -259,9 +285,9 @@ export default function AddNewAudit({ userId }: AddNewAuditProps) {
               </p>
             ))}
           </div>
-        </div>
+       
       </header>
-      <main className="px-24 mt-5">
+      <main className="px-24 pt-5 bg-white h-[calc(100vh-100px)]">
         <div className="flex gap items-center justify-between mb-4">
           <div className="flex-1">
             <input
@@ -482,7 +508,7 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
                     placeholder={`Question ${rowIndex.toString().padStart(2, '0')}`}
                     onClick={() => handleQuestionClick(rowIndex)}
                     onChange={(e) => handleQuestionChange(rowIndex, e.target.value)}
-                    className="w-full bg-[#4569871A] px-4 py-2 border border-[#3b5163] rounded-xl outline-none"
+                    className="w-full bg-[#4569871A] px-4 py-3 border border-[#3b5163] rounded-xl outline-none"
                   />
                 </td>
                 <td className="border-r border-gray-300 px-4 py-3 align-middle ">

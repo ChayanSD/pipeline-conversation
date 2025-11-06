@@ -127,10 +127,18 @@ export default function SigninPage() {
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
-
+            <div className="text-center ">
+              Create an account ? 
+                <Link
+                  href="/signup"
+                  className="text-sm px-1 text-blue-500 hover:text-blue-600 underline"
+                >
+                   Signup
+                </Link>
+              </div>
             {message && (
               <p
-                className={`text-center text-sm ${message.includes('failed') ? 'text-red-500' : 'text-green-500'
+                className={`text-center text-sm ${(message.includes('failed') || message.includes('Invalid')) ? 'text-red-500' : 'text-green-500'
                   }`}
               >
                 {message}

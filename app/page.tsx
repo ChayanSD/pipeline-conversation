@@ -34,15 +34,15 @@ export default function Home() {
   }, [router]);
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <div className="p-14 bg-white h-full">Loading...</div>;
   }
 
   if (!user) {
-    return <div>Loading...</div>;
+    return <div className="p-14 bg-white h-full">Loading...</div>;
   }
 
   return (
-    <div className="p-14 bg-transparent">
+    <div className="p-14 bg-white h-full">
       <div className="">
         <h1 className="text-gray-900 mb-2 font-normal" style={{ fontSize: 'clamp(1.25rem, 4vw, 1.6875rem)' }}>
           Hellow, {user.name}!
@@ -80,8 +80,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-
-      
     </div>
   );
 }

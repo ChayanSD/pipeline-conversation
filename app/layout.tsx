@@ -4,6 +4,7 @@ import { UserProvider } from "@/contexts/UserContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { getSession } from "@/lib/session";
 import Sidebar from "@/components/Sidebar";
+import BackgroundWrapper from "@/components/BackgroundWrapper";
 
 
 export const metadata: Metadata = {
@@ -23,12 +24,14 @@ export default async function RootLayout({
       <body >
         <UserProvider user={session}>
           <ThemeProvider>
-            <div className="flex h-screen ">
-              <Sidebar />
-              <main className="flex-1 overflow-auto ">
-                {children}
-              </main>
-            </div>
+            <BackgroundWrapper>
+              <div className="flex min-h-screen h-screen">
+                <Sidebar />
+                <main className="flex-1 overflow-auto">
+                  {children}
+                </main>
+              </div>
+            </BackgroundWrapper>
           </ThemeProvider>
         </UserProvider>
       </body>

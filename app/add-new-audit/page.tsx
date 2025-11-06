@@ -43,8 +43,8 @@ export default function AddNewAuditPage() {
 
   return (
     <div className="">
-      <div className="mt-5">
-        <AddNewAudit userId={user.id} />
+      <div className="">
+        <AddNewAudit />
       </div>
 
     </div>

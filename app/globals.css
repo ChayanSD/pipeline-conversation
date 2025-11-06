@@ -8,7 +8,7 @@
   }
 
   body {
-    background-color: #ffffff !important;
+    /* Background will be applied dynamically via BackgroundWrapper component */
   }
 }
 
@@ -29,5 +29,5 @@
 }
 
 body {
-  font-family: 'MyriadPro-Regular_0';
+  font-family: 'MyriadPro-Regular_0' !important;
 }
