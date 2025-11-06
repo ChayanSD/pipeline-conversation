@@ -6,6 +6,7 @@ import axios from 'axios';
 import Image from 'next/image';
 import logo from '@/public/logo.png';
 import { useState, useEffect } from 'react';
+import { Pencil } from 'lucide-react';
 
 type NavigationItem = {
   name: string;
@@ -309,23 +310,32 @@ export default function Sidebar() {
                   style={{ color: 'inherit' }}
                 />
               ) : (
-                <button
-                  onDoubleClick={(e) => {
-                    if (itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage)) {
-                      e.stopPropagation();
-                      setEditingCategory(itemCategoryNumber);
-                    }
-                  }}
-                  onClick={() => {
-                    if (!isEditing) {
-                      router.push(item.href);
-                    }
-                  }}
-                  className="w-full h-full cursor-pointer flex items-center text-left"
-                  style={{ color: 'inherit' }}
-                >
-                  {item.name}
-                </button>
+                <div className="w-full h-full flex items-center justify-between">
+                  <button
+                    onClick={() => {
+                      if (!isEditing) {
+                        router.push(item.href);
+                      }
+                    }}
+                    className="flex-1 h-full cursor-pointer flex items-center text-left"
+                    style={{ color: 'inherit' }}
+                  >
+                    {item.name}
+                  </button>
+                  {isCategoryItem && itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage) && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingCategory(itemCategoryNumber);
+                      }}
+                      className="p-1 rounded hover:bg-white/20 cursor-pointer flex items-center"
+                      style={{ color: 'inherit' }}
+                      aria-label="Edit category name"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           );

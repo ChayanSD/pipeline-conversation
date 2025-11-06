@@ -109,7 +109,7 @@ export default function AddNewAudit() {
       const question: Partial<{ text: string; options: OptionState[] }> = {};
       if (qText) question.text = qText;
       if (Array.isArray(labels) && labels.length === 5) {
-        question.options = labels.map((t, i) => ({ text: (t || `Option ${i + 1}`).trim(), points: i + 1 }));
+        question.options = labels.map((t, i) => ({ text: (t || `Option ${i + 1}`).trim(), points: i }));
       }
       questions.push(question);
     }
@@ -195,7 +195,7 @@ export default function AddNewAudit() {
                   }))
                 : Array.from({ length: 5 }, (_, i) => ({
                     text: `Option ${i + 1}`,
-                    points: i + 1
+                    points: i
                   }))
             }))
             .filter(q => q.text.length > 0);
@@ -520,11 +520,6 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
                     </div>
                   ) : (
                     <div className="w-[30vw]"></div>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-center align-middle w-16">
-                  {isActive && (
-                    <span className="text-gray-700">{rowIndex}</span>
                   )}
                 </td>
               </tr>

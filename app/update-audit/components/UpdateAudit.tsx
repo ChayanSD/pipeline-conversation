@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { auditApi } from "@/lib/api";
 import toast from "react-hot-toast";
 import TableSkeleton from "../../add-new-audit/components/tableSkeleton";
+import { Pencil } from "lucide-react";
 
 type OptionState = { text: string; points: number };
 
@@ -20,6 +21,7 @@ export default function UpdateAudit() {
   const [tableQuestions, setTableQuestions] = useState<{ index: number; text: string }[]>([]);
   const [statusMap, setStatusMap] = useState<Record<number, string[]>>({});
   const [loading, setLoading] = useState(true);
+  const [titleEditable, setTitleEditable] = useState(false);
 
   // Fetch audit data from API and populate sessionStorage
   useEffect(() => {
@@ -174,7 +176,7 @@ export default function UpdateAudit() {
       const question: Partial<{ text: string; options: OptionState[] }> = {};
       if (qText) question.text = qText;
       if (Array.isArray(labels) && labels.length === 5) {
-        question.options = labels.map((t, i) => ({ text: (t || `Option ${i + 1}`).trim(), points: i + 1 }));
+        question.options = labels.map((t, i) => ({ text: (t || `Option ${i + 1}`).trim(), points: i }));
       }
       questions.push(question);
     }
@@ -265,7 +267,7 @@ export default function UpdateAudit() {
                   }))
                 : Array.from({ length: 5 }, (_, i) => ({
                     text: `Option ${i + 1}`,
-                    points: i + 1
+                    points: i
                   }))
             }))
             .filter(q => q.text.length > 0);
@@ -364,14 +366,23 @@ export default function UpdateAudit() {
       </header>
       <main className="px-24 pt-5 bg-white h-full pb-10">
         <div className="flex gap items-center justify-between mb-4">
-          <div className="flex-1">
+          <div className="flex-1 relative">
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Presentation Name"
-              className="w-full bg-[#4569871A]  text-[18px] px-6 py-[12px] border border-[#3b5163] rounded-xl outline-none"
+              disabled={!titleEditable}
+              className="w-full bg-[#4569871A]  text-[18px] pr-12 pl-6 py-[12px] border border-[#3b5163] rounded-xl outline-none disabled:opacity-70"
             />
+            <button
+              type="button"
+              onClick={() => setTitleEditable((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-700 hover:bg-gray-50 rounded cursor-pointer"
+              aria-label={titleEditable ? "Disable editing title" : "Enable editing title"}
+            >
+              <Pencil size={12} />
+            </button>
           </div>
           <div className="w-px h-0 bg-[#3b5163] mx-7"></div>
           <div className="flex gap-3">
@@ -413,6 +424,8 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
   const [activeRows, setActiveRows] = useState<Set<number>>(new Set());
   const [questions, setQuestions] = useState<{ [key: number]: string }>({});
   const [statusLabels, setStatusLabels] = useState<Record<number, string[]>>({});
+  const [editableQuestions, setEditableQuestions] = useState<Set<number>>(new Set());
+  const [editableStatus, setEditableStatus] = useState<Record<number, Set<number>>>({});
 
   // Hydrate questions and status labels from sessionStorage on mount or category change
   useEffect(() => {
@@ -570,35 +583,65 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
                   <span className="text-gray-700">{rowIndex}</span>
                 </td>
                 <td className="border-r border-gray-300 px-4 py-3 align-middle w-full">
-                  <input
-                    type="text"
-                    value={questions[rowIndex] || ''}
-                    placeholder={`Question ${rowIndex.toString().padStart(2, '0')}`}
-                    onClick={() => handleQuestionClick(rowIndex)}
-                    onChange={(e) => handleQuestionChange(rowIndex, e.target.value)}
-                    className="w-full bg-[#4569871A] px-4 h-[5vh] border border-[#3b5163] rounded-xl outline-none"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={questions[rowIndex] || ''}
+                      placeholder={`Question ${rowIndex.toString().padStart(2, '0')}`}
+                      onClick={() => handleQuestionClick(rowIndex)}
+                      onChange={(e) => handleQuestionChange(rowIndex, e.target.value)}
+                      disabled={!editableQuestions.has(rowIndex)}
+                      className="w-full bg-[#4569871A] pr-12 pl-4 h-[5vh] border border-[#3b5163] rounded-xl outline-none disabled:opacity-70"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditableQuestions(prev => {
+                        const next = new Set(prev);
+                        if (next.has(rowIndex)) next.delete(rowIndex); else next.add(rowIndex);
+                        return next;
+                      })}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-700 hover:bg-gray-50 rounded cursor-pointer"
+                      aria-label={editableQuestions.has(rowIndex) ? "Disable editing question" : "Enable editing question"}
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </div>
                 </td>
                 <td className="border-r border-gray-300 px-4 py-3 align-middle ">
                   {isActive ? (
                     <div className="flex gap-2 items-center ">
                       {statusButtons.map((button, idx) => (
-                        <input
-                          key={button.label}
-                          type="text"
-                          value={getStatusValue(rowIndex, idx)}
-                          onChange={(e) => setStatusValue(rowIndex, idx, e.target.value)}
-                          className={`${button.color} ${button.borderColor} ${button.textColor} pl-3 py-1.5 w-28 rounded-lg border font-medium text-sm outline-none`}
-                        />
+                        <div key={button.label} className="relative">
+                          <input
+                            type="text"
+                            value={getStatusValue(rowIndex, idx)}
+                            onChange={(e) => setStatusValue(rowIndex, idx, e.target.value)}
+                            disabled={!((editableStatus[rowIndex]?.has(idx)) ?? false)}
+                            className={`${button.color} ${button.borderColor} ${button.textColor} pr-10 pl-3 py-1.5 w-28 rounded-lg border font-medium text-sm outline-none disabled:opacity-70`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setEditableStatus(prev => {
+                              const next: Record<number, Set<number>> = { ...prev } as Record<number, Set<number>>;
+                              const existing = next[rowIndex] ? new Set(Array.from(next[rowIndex])) : new Set<number>();
+                              if (existing.has(idx)) {
+                                existing.delete(idx);
+                              } else {
+                                existing.add(idx);
+                              }
+                              next[rowIndex] = existing;
+                              return next;
+                            })}
+                            className={`absolute right-1 top-1/2 -translate-y-1/2 p-0.5 ${button.textColor} hover:opacity-80 rounded cursor-pointer`}
+                            aria-label={((editableStatus[rowIndex]?.has(idx)) ?? false) ? "Disable editing option" : "Enable editing option"}
+                          >
+                            <Pencil size={10} />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   ) : (
                     <div className="w-[30vw]"></div>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-center align-middle w-16">
-                  {isActive && (
-                    <span className="text-gray-700">{rowIndex}</span>
                   )}
                 </td>
               </tr>
