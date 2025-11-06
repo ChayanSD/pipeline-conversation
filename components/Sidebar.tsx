@@ -229,6 +229,8 @@ export default function Sidebar() {
       {/* Logo/Brand */}
       <div className="py-12 border-b-2 border-[#456987] flex justify-center" style={{ position: 'relative', zIndex: 2 }}>
         <Image 
+        onClick={() => router.push('/')}
+        className="cursor-pointer"
           src={logo} 
           alt="Logo" 
           width={168} 
@@ -329,15 +331,15 @@ export default function Sidebar() {
         <div className="flex items-center justify-center" style={{ marginBottom: 'clamp(0.75rem, 3vw, 1.25rem)' }}>
           {user.profileImageUrl ? (
             <Image
-              className="rounded-full object-cover cursor-pointer"
+              className="rounded-lg w-[180px] h-[199px] object-cover cursor-pointer"
               src={user.profileImageUrl}
               alt="Profile"
               width={180}
               height={199}
               // onClick={handleLogout}
               style={{
-                width: 'clamp(60px, 15vw, 244px)',
-                height: 'clamp(60px, 15vw, 269px)'
+                width: 'clamp(60px, 15vw, 180px)',
+                height: 'clamp(60px, 15vw, 199px)'
               }}
             />
           ) : (

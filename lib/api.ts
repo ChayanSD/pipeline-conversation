@@ -17,6 +17,10 @@ export const auditApi = {
     const response = await api.post('/audit', data);
     return response.data.data;
   },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/presentation/${id}`);
+  },
 };
 
 // Presentation APIs

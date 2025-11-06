@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auditApi } from "@/lib/api";
+import toast from "react-hot-toast";
 
 type OptionState = { text: string; points: number };
 
@@ -14,8 +15,6 @@ export default function AddNewAudit() {
   const [title, setTitle] = useState("");
   const [categoryName, setCategoryName] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [tableQuestions, setTableQuestions] = useState<{ index: number; text: string }[]>([]);
   const [statusMap, setStatusMap] = useState<Record<number, string[]>>({});
 
@@ -153,17 +152,14 @@ export default function AddNewAudit() {
   }, [buildAuditData, currentCategory, categoryName]);
 
   const handleCreate = async () => {
-    setError(null);
-    setSuccess(null);
-
     if (!title.trim()) {
-      setError("Presentation name is required");
+      toast.error("Presentation name is required");
       return;
     }
 
     const questionTexts = tableQuestions.map(q => q.text).filter(Boolean);
     if (questionTexts.length === 0) {
-      setError("Add at least one question in the table");
+      toast.error("Add at least one question in the table");
       return;
     }
 
@@ -212,7 +208,7 @@ export default function AddNewAudit() {
         .filter(cat => cat.questions.length > 0);
 
       if (categories.length === 0) {
-        setError("Add at least one question in the table");
+        toast.error("Add at least one question in the table");
         setSubmitting(false);
         return;
       }
@@ -223,7 +219,7 @@ export default function AddNewAudit() {
         categories
       });
 
-      setSuccess("Audit created successfully");
+      toast.success("Audit created successfully");
       
       // Clear all state
       setTitle("");
@@ -251,8 +247,13 @@ export default function AddNewAudit() {
         // Dispatch event to update sidebar
         window.dispatchEvent(new Event('categoryNameUpdated'));
       }
+      
+      // Redirect to home page after successful creation
+      setTimeout(() => {
+        router.push("/");
+      }, 1000);
     } catch (e) {
-      setError("Failed to create audit");
+      toast.error("Failed to create audit. Please try again.");
       console.error(e);
     } finally {
       setSubmitting(false);
@@ -287,7 +288,7 @@ export default function AddNewAudit() {
           </div>
        
       </header>
-      <main className="px-24 pt-5 bg-white h-[calc(100vh-100px)]">
+      <main className="px-24 pt-5 bg-white h-full pb-10">
         <div className="flex gap items-center justify-between mb-4">
           <div className="flex-1">
             <input
@@ -315,13 +316,6 @@ export default function AddNewAudit() {
             </button>
           </div>
         </div>
-
-        {error && (
-          <div className="mt-4 text-red-600 text-sm">{error}</div>
-        )}
-        {success && (
-          <div className="mt-4 text-green-700 text-sm">{success}</div>
-        )}
 
         <div className="mt-8">
           <AuditTable
@@ -508,7 +502,7 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
                     placeholder={`Question ${rowIndex.toString().padStart(2, '0')}`}
                     onClick={() => handleQuestionClick(rowIndex)}
                     onChange={(e) => handleQuestionChange(rowIndex, e.target.value)}
-                    className="w-full bg-[#4569871A] px-4 py-3 border border-[#3b5163] rounded-xl outline-none"
+                    className="w-full bg-[#4569871A] px-4 h-[5vh] border border-[#3b5163] rounded-xl outline-none"
                   />
                 </td>
                 <td className="border-r border-gray-300 px-4 py-3 align-middle ">
