@@ -604,7 +604,7 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
                       aria-label={editableQuestions.has(rowIndex) ? "Disable editing question" : "Enable editing question"}
                     >
                       <Pencil size={12} />
-                    </button>
+                    </button>       
                   </div>
                 </td>
                 <td className="border-r border-gray-300 px-4 py-3 align-middle ">

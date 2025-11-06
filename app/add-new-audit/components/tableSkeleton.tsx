@@ -36,7 +36,7 @@ const tableSkeleton = () => {
           />
         </div>
       </div>
-      <div className="px-24 flex items-center justify-between mt-4">
+      <div className="px-24 flex items-center justify-between my-1">
         <Skeleton 
           width={120} 
           height={28}
@@ -59,7 +59,7 @@ const tableSkeleton = () => {
     </header>
 
     {/* Main Content Skeleton */}
-    <main className="px-24 pt-5 bg-white h-full pb-10">
+    <main className="px-24 pt-5 bg-white h-[calc(100vh-105px)] pb-10">
       {/* Title and Buttons Row */}
       <div className="flex gap items-center justify-between mb-4">
         <div className="flex-1">

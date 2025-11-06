@@ -195,17 +195,23 @@ export default function Sidebar() {
   //   });
   // }
 
-  // When on add-new-audit or update-audit, show Category 1-7 and hide ALL AUDITS button
+  // When on add-new-audit, update-audit, or test page, show Category 1-7 and hide ALL AUDITS button
   let effectiveItems = navigationItems;
   const onNewAuditPage = pathname === '/add-new-audit';
   const onUpdateAuditPage = pathname === '/update-audit';
-  if (onNewAuditPage || onUpdateAuditPage) {
+  const onTestPage = pathname === '/test';
+  if (onNewAuditPage || onUpdateAuditPage || onTestPage) {
     const editId = searchParams.get('edit');
-    const basePath = onNewAuditPage ? '/add-new-audit' : '/update-audit';
+    const presentationId = searchParams.get('presentationId');
+    let basePath = '/add-new-audit';
+    if (onUpdateAuditPage) basePath = '/update-audit';
+    if (onTestPage) basePath = '/test';
+    
     const categoryItems = Array.from({ length: 7 }, (_, i) => {
       const categoryNumber = i + 1;
       const query = new URLSearchParams();
       if (onUpdateAuditPage && editId) query.set('edit', editId);
+      if (onTestPage && presentationId) query.set('presentationId', presentationId);
       query.set('category', String(categoryNumber));
       return {
         categoryNumber,
@@ -252,7 +258,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="pt-4" style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
-        {(onNewAuditPage || onUpdateAuditPage) && (
+        {(onNewAuditPage || onUpdateAuditPage || onTestPage) && (
           <div className="px-4 text-center font-medium text-[#fffef7]" style={{ marginBottom: 'clamp(0.25rem, 1vw, 0.5rem)' }}>
             ALL AUDITS
           </div>
@@ -262,12 +268,16 @@ export default function Sidebar() {
           let isActive = pathname === item.href;
           const isCategoryItem = 'categoryNumber' in item && typeof item.categoryNumber === 'number';
           const itemCategoryNumber = isCategoryItem && item.categoryNumber !== undefined ? item.categoryNumber : null;
-          if ((onNewAuditPage && item.href.startsWith('/add-new-audit')) || (onUpdateAuditPage && item.href.startsWith('/update-audit'))) {
+          if ((onNewAuditPage && item.href.startsWith('/add-new-audit')) || 
+              (onUpdateAuditPage && item.href.startsWith('/update-audit')) ||
+              (onTestPage && item.href.startsWith('/test'))) {
             const currentCategory = searchParams.get('category');
             const itemCategory = new URLSearchParams(item.href.split('?')[1]).get('category');
             isActive = currentCategory === itemCategory;
           }
-          const useSecondary = ((onNewAuditPage && item.href.startsWith('/add-new-audit')) || (onUpdateAuditPage && item.href.startsWith('/update-audit')));
+          const useSecondary = ((onNewAuditPage && item.href.startsWith('/add-new-audit')) || 
+                                (onUpdateAuditPage && item.href.startsWith('/update-audit')) ||
+                                (onTestPage && item.href.startsWith('/test')));
           const isEditing = itemCategoryNumber !== null && editingCategory === itemCategoryNumber;
           
           return (
@@ -322,7 +332,7 @@ export default function Sidebar() {
                   >
                     {item.name}
                   </button>
-                  {isCategoryItem && itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage) && (
+                  {isCategoryItem && itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage || onTestPage) && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

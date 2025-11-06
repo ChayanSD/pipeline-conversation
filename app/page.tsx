@@ -264,7 +264,7 @@ export default function Home() {
                         Delete
                       </CustomButton>
                       <button
-                        onClick={() => router.push(`/test?presentationId=${audit.id}`)}
+                        onClick={() => router.push(`/test?presentationId=${audit.id}&category=1`)}
                         className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 flex items-center gap-1"
                       >
                         <Play size={14} />
