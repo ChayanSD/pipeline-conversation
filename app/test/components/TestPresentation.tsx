@@ -269,7 +269,64 @@ export default function TestPresentation() {
               );
             })}
             {/* Summary Icon */}
-            <div className="flex flex-col items-center ml-4">
+            <div 
+              className="flex flex-col items-center ml-4 cursor-pointer"
+              onClick={() => {
+                if (typeof window !== 'undefined' && presentationId && presentation) {
+                  // Calculate current scores from answers
+                  const scores: Record<string, number> = {};
+                  presentation.categories.forEach(cat => {
+                    scores[cat.id] = 0;
+                  });
+
+                  questions.forEach(q => {
+                    const selectedOptionId = answers[q.id];
+                    if (selectedOptionId) {
+                      const option = q.options.find(opt => opt.id === selectedOptionId);
+                      if (option) {
+                        const catId = q.category.id;
+                        scores[catId] = (scores[catId] || 0) + option.points;
+                      }
+                    }
+                  });
+
+                  // Calculate total score
+                  const totalScore = presentation.categories.reduce((sum, cat) => {
+                    return sum + (scores[cat.id] || 0);
+                  }, 0);
+
+                  // Store category names and scores in sessionStorage
+                  const testResultData = {
+                    totalScore,
+                    categoryScores: presentation.categories.map(cat => {
+                      const categoryQuestions = questions.filter(q => q.category.id === cat.id);
+                      return {
+                        categoryId: cat.id,
+                        categoryName: cat.name,
+                        score: scores[cat.id] || 0,
+                        maxScore: categoryQuestions.length * 5,
+                      };
+                    }),
+                  };
+                  sessionStorage.setItem('testResultData', JSON.stringify(testResultData));
+                  
+                  // Store category names
+                  presentation.categories.forEach((category, index) => {
+                    const categoryNumber = index + 1;
+                    if (category.name) {
+                      sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, category.name);
+                    }
+                  });
+
+                  // Dispatch events to update sidebar
+                  window.dispatchEvent(new Event('categoryNameUpdated'));
+                  window.dispatchEvent(new Event('testResultUpdated'));
+
+                  // Navigate to result page
+                  router.push(`/test/result?presentationId=${presentationId}`);
+                }
+              }}
+            >
               <div className="w-24 h-24 flex items-center justify-center">
                 <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none">
                   <circle cx="12" cy="12" r="10" fill="#F7AF41" />

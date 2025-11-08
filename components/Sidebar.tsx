@@ -7,7 +7,7 @@ import Image from 'next/image';
 import logo from '@/public/logo.png';
 import { useState, useEffect } from 'react';
 import { FiEdit } from 'react-icons/fi';
-
+import summary from '@/public/summary.png';
 type NavigationItem = {
   name: string;
   href: string;
@@ -22,6 +22,17 @@ export default function Sidebar() {
   const searchParams = useSearchParams();
   const [editingCategory, setEditingCategory] = useState<number | null>(null);
   const [categoryNames, setCategoryNames] = useState<Record<number, string>>({});
+  
+  // Load test result data for summary overview
+  const [testResultData, setTestResultData] = useState<{
+    totalScore: number;
+    categoryScores: Array<{
+      categoryId: string;
+      categoryName: string;
+      score: number;
+      maxScore: number;
+    }>;
+  } | null>(null);
 
   // Helper function to convert hex to rgba with opacity (same as BackgroundWrapper)
   const hexToRgba = (hex: string, opacity: number): string => {
@@ -41,6 +52,26 @@ export default function Sidebar() {
   const primaryColor = user?.primaryColor || '#2B4055';
   const primaryColorWithOpacity = hexToRgba(primaryColor, 0.8); // 80% opacity for background
   const primaryColorOverlay = hexToRgba(primaryColor, 0.70); // 70% opacity for BackgroundWrapper-style overlay
+
+  // Load test result data for summary overview
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const loadTestResult = () => {
+      try {
+        const stored = sessionStorage.getItem('testResultData');
+        if (stored) {
+          setTestResultData(JSON.parse(stored));
+        } else {
+          setTestResultData(null);
+        }
+      } catch {
+        setTestResultData(null);
+      }
+    };
+    loadTestResult();
+    window.addEventListener('testResultUpdated', loadTestResult);
+    return () => window.removeEventListener('testResultUpdated', loadTestResult);
+  }, []);
 
   // Load category names from sessionStorage
   useEffect(() => {
@@ -201,6 +232,8 @@ export default function Sidebar() {
   const onNewAuditPage = pathname === '/add-new-audit';
   const onUpdateAuditPage = pathname === '/update-audit';
   const onTestPage = pathname === '/test';
+  const onResultPage = pathname === '/test/result';
+
   if (onNewAuditPage || onUpdateAuditPage || onTestPage) {
     const editId = searchParams.get('edit');
     const presentationId = searchParams.get('presentationId');
@@ -240,31 +273,90 @@ export default function Sidebar() {
         backgroundColor: 'transparent'
       }}
     >
-      {/* Logo/Brand */}
+      {/* Logo/Brand or Summary Overview */}
       <div className="py-12 border-b-2 border-[#456987] flex justify-center" style={{ position: 'relative', zIndex: 2 }}>
-        <Image 
-        onClick={() => router.push('/')}
-        className="cursor-pointer"
-          src={logo} 
-          alt="Logo" 
-          width={168} 
-          height={60} 
-          style={{ 
-            width: 'clamp(120px, 15vw, 168px)', 
-            height: 'clamp(40px, 8vw, 60px)',
-            objectFit: 'contain'
-          }} 
-        />
+        {onResultPage ? (
+          <div className="flex items-center gap-3 px-4">
+           
+            <Image src={summary} alt="Logo" width={70} height={60} />
+            <span className="text-white font-normal text-3xl">Summary Overview</span>
+          </div>
+        ) : (
+          <Image 
+            onClick={() => router.push('/')}
+            className="cursor-pointer"
+            src={logo} 
+            alt="Logo" 
+            width={168} 
+            height={60} 
+            style={{ 
+              width: 'clamp(120px, 15vw, 168px)', 
+              height: 'clamp(40px, 8vw, 60px)',
+              objectFit: 'contain'
+            }} 
+          />
+        )}
       </div>
 
       {/* Navigation */}
       <nav className="pt-4" style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
-        {(onNewAuditPage || onUpdateAuditPage || onTestPage) && (
-          <div className="px-4 text-center font-medium text-[#fffef7]" style={{ marginBottom: 'clamp(0.25rem, 1vw, 0.5rem)' }}>
-            ALL AUDITS
-          </div>
-        )}
-        {effectiveItems.map((item) => {
+        {onResultPage ? (
+          <>
+            {/* Area Of Urgent Focus */}
+            <div className="px-4 mt-4">
+              <h3 className="text-sm font-semibold text-white mb-3 uppercase">Area Of Urgent Focus</h3>
+              <div className="space-y-3">
+                {testResultData && (() => {
+                  const urgentCategories = [...testResultData.categoryScores]
+                    .sort((a, b) => {
+                      const aPercentage = a.maxScore > 0 ? (a.score / a.maxScore) * 100 : 0;
+                      const bPercentage = b.maxScore > 0 ? (b.score / b.maxScore) * 100 : 0;
+                      return aPercentage - bPercentage;
+                    })
+                    .slice(0, 3);
+
+                  return urgentCategories.map((cs) => {
+                    const percentage = cs.maxScore > 0 ? (cs.score / cs.maxScore) * 100 : 0;
+                    return (
+                      <div key={cs.categoryId} className="mb-4">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-white text-sm">{cs.categoryName}</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#F65355] transition-all duration-500"
+                            style={{ width: `${Math.min(percentage, 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Testimonials */}
+            <div className="px-4 mt-6">
+              <h3 className="text-sm font-semibold text-white mb-3 uppercase">Testimonials</h3>
+              <div className="space-y-4">
+                {[1, 2].map((i) => (
+                  <div key={i} className="bg-white/10 rounded-lg p-3">
+                    <p className="text-white text-xs leading-relaxed">
+                      Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nummy nibh euismod
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {(onNewAuditPage || onUpdateAuditPage || onTestPage) && (
+              <div className="px-4 text-center font-medium text-[#fffef7]" style={{ marginBottom: 'clamp(0.25rem, 1vw, 0.5rem)' }}>
+                ALL AUDITS
+              </div>
+            )}
+            {effectiveItems.map((item) => {
           // Active state: exact match for regular links; for category links, match by query param
           let isActive = pathname === item.href;
           const isCategoryItem = 'categoryNumber' in item && typeof item.categoryNumber === 'number';
@@ -407,49 +499,77 @@ export default function Sidebar() {
             </div>
           );
         })}
+          </>
+        )}
       </nav>
 
-      {/* User Profile Section */}
+      {/* User Profile Section or Action Buttons */}
       <div className="mt-auto overflow-hidden" style={{ position: 'relative', zIndex: 2, paddingBottom: 'clamp(1rem, 4vw, 2rem)' }}>
-        <div className="flex items-center justify-center" style={{ marginBottom: 'clamp(0.75rem, 3vw, 1.25rem)' }}>
-          {user.profileImageUrl ? (
-            <Image
-              className="rounded-lg w-[180px] h-[199px] object-cover cursor-pointer"
-              src={user.profileImageUrl}
-              alt="Profile"
-              width={180}
-              height={199}
-              onClick={() => router.push('/profile')}
-              style={{
-                width: 'clamp(60px, 15vw, 180px)',
-                height: 'clamp(60px, 15vw, 199px)'
-              }}
-            />
-          ) : (
-            <div 
-              className="rounded bg-gray-300 flex items-center justify-center cursor-pointer"
-              onClick={() => router.push('/profile')}
-              style={{
-                width: 'clamp(60px, 15vw, 180px)',
-                height: 'clamp(60px, 15vw, 199px)'
+        {onResultPage ? (
+          <div className="px-4 space-y-3">
+            <button
+              onClick={handleLogout}
+              className="w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors"
+              style={{ 
+                backgroundColor: primaryColor,
+                fontSize: 'clamp(0.875rem, 3vw, 1rem)'
               }}
             >
-              <span className="font-medium text-gray-700" style={{ fontSize: 'clamp(1rem, 4vw, 1.5rem)' }}>
-                {user.name.charAt(0).toUpperCase()}
-              </span>
+              Logout
+            </button>
+            <button
+              onClick={() => router.push('/')}
+              className="w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors bg-gray-600 hover:bg-gray-700"
+              style={{ 
+                fontSize: 'clamp(0.875rem, 3vw, 1rem)'
+              }}
+            >
+              Exit
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-center" style={{ marginBottom: 'clamp(0.75rem, 3vw, 1.25rem)' }}>
+              {user.profileImageUrl ? (
+                <Image
+                  className="rounded-lg w-[180px] h-[199px] object-cover cursor-pointer"
+                  src={user.profileImageUrl}
+                  alt="Profile"
+                  width={180}
+                  height={199}
+                  onClick={() => router.push('/profile')}
+                  style={{
+                    width: 'clamp(60px, 15vw, 180px)',
+                    height: 'clamp(60px, 15vw, 199px)'
+                  }}
+                />
+              ) : (
+                <div 
+                  className="rounded bg-gray-300 flex items-center justify-center cursor-pointer"
+                  onClick={() => router.push('/profile')}
+                  style={{
+                    width: 'clamp(60px, 15vw, 180px)',
+                    height: 'clamp(60px, 15vw, 199px)'
+                  }}
+                >
+                  <span className="font-medium text-gray-700" style={{ fontSize: 'clamp(1rem, 4vw, 1.5rem)' }}>
+                    {user.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <p 
-          className="font-medium text-white text-center underline cursor-pointer" 
-          style={{ 
-            fontSize: 'clamp(0.875rem, 3vw, 1.125rem)',
-            marginTop: 'clamp(0.75rem, 3vw, 1.25rem)'
-          }} 
-          onClick={handleLogout}
-        >
-          Logout
-        </p>
+            <p 
+              className="font-medium text-white text-center underline cursor-pointer" 
+              style={{ 
+                fontSize: 'clamp(0.875rem, 3vw, 1.125rem)',
+                marginTop: 'clamp(0.75rem, 3vw, 1.25rem)'
+              }} 
+              onClick={handleLogout}
+            >
+              Logout
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
