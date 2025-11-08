@@ -230,7 +230,7 @@ export default function SummaryPage() {
           </div>
         </div>
       </main>
-      <footer className="bg-[#EFEFEF] p-5 rounded-2xl mt-10"></footer>
+      {/* <footer className="bg-[#EFEFEF] p-5 rounded-2xl mt-10"></footer> */}
     </div>
   );
 }
