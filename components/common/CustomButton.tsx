@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useUser } from "@/contexts/UserContext";
 
 type ButtonVariant =
   | "primary"      // Yellow brand button (black text)
@@ -24,7 +25,7 @@ export interface CustomButtonProps
 
 const variantToClass: Record<ButtonVariant, string> = {
   primary:
-    "bg-[#F7AF41] text-black hover:bg-[#F7AF41]/90",
+    "text-black",
   brand:
     "bg-[#F7B538] text-white hover:bg-[#F7AF41]",
   gray:
@@ -53,11 +54,20 @@ export default function CustomButton({
   className,
   children,
   disabled,
+  style,
   ...props
 }: CustomButtonProps) {
+  const { user } = useUser();
+  const secondaryColor = user?.secondaryColor || '#456987';
+  
   const base = "inline-flex  items-center justify-center font-medium transition-colors cursor-pointer";
   const rounded = fullRounded ? "rounded-full" : "rounded-md";
   const disabledClass = "disabled:opacity-60 disabled:cursor-not-allowed";
+
+  // For primary variant, use secondary color from user context
+  const primaryStyle = variant === "primary" 
+    ? { backgroundColor: secondaryColor, ...style }
+    : style;
 
   return (
     <button
@@ -69,6 +79,7 @@ export default function CustomButton({
         sizeToClass[size],
         className || "",
       ].join(" ")}
+      style={primaryStyle}
       disabled={disabled || loading}
       {...props}
     >

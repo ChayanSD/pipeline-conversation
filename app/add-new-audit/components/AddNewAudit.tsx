@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auditApi } from "@/lib/api";
 import toast from "react-hot-toast";
+import { CustomButton } from "@/components/common";
 
 type OptionState = { text: string; points: number };
 
@@ -307,13 +308,16 @@ export default function AddNewAudit() {
             >
               Back to List
             </button>
-            <button
-              onClick={handleCreate}
+            <CustomButton
+              variant="primary"
+              size="md"
+              className="flex-1"
+              fullRounded={true}
               disabled={submitting}
-              className="px-[20px] w-[200px] py-[12px] bg-[#F7AF41] hover:bg-[#F7AF41]/80 disabled:opacity-60 transition-all duration-300 rounded-full text-[18px] tracking-[0.352px] leading-normal cursor-pointer"
+              onClick={handleCreate}
             >
               {submitting ? "Creating..." : "Create Audit"}
-            </button>
+            </CustomButton>
           </div>
         </div>
 

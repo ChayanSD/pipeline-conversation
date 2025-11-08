@@ -34,10 +34,14 @@ export async function PATCH(request: NextRequest) : Promise<NextResponse> {
       );
     }
 
-    const { name, companyName, passCode, primaryColor, secondaryColor, companyRole, profileImageUrl: formProfileImageUrl } = result.data;
+    const { name, companyName, passCode, primaryColor, secondaryColor, companyRole, profileImageUrl: formProfileImageUrl, companyLogoUrl } = result.data;
+
+    // Filter out empty strings
+    const hasProfileImageUrl = formProfileImageUrl && formProfileImageUrl.trim() !== '';
+    const hasCompanyLogoUrl = companyLogoUrl && companyLogoUrl.trim() !== '';
 
     // Check if there's anything to update
-    if (!name && !companyName && !passCode && !primaryColor && !secondaryColor && !companyRole && !formProfileImageUrl) {
+    if (!name && !companyName && !passCode && !primaryColor && !secondaryColor && !companyRole && !hasProfileImageUrl && !hasCompanyLogoUrl) {
       return NextResponse.json(
         { error: 'No fields to update' },
         { status: 400 }
@@ -58,7 +62,7 @@ export async function PATCH(request: NextRequest) : Promise<NextResponse> {
     if (primaryColor) updateData.primaryColor = primaryColor;
     if (secondaryColor) updateData.secondaryColor = secondaryColor;
     if (companyRole) updateData.companyRole = companyRole;
-    if (formProfileImageUrl) updateData.profileImageUrl = formProfileImageUrl;
+    if (hasProfileImageUrl) updateData.profileImageUrl = formProfileImageUrl;
 
     // Update user in database
     const updatedUser = await prisma.user.update({
@@ -69,14 +73,23 @@ export async function PATCH(request: NextRequest) : Promise<NextResponse> {
       },
     });
 
-    // Update company name if provided
+    // Update company name and logo if provided
+    const companyUpdateData: { name?: string; logoUrl?: string } = {};
     if (companyName && companyName !== session.company?.name) {
-      await prisma.company.update({
+      companyUpdateData.name = companyName;
+    }
+    if (hasCompanyLogoUrl && companyLogoUrl !== session.company?.logoUrl) {
+      companyUpdateData.logoUrl = companyLogoUrl;
+    }
+    
+    if (Object.keys(companyUpdateData).length > 0) {
+      const updatedCompany = await prisma.company.update({
         where: { id: session.companyId },
-        data: { name: companyName },
+        data: companyUpdateData,
       });
       // Update the company in the user object
-      updatedUser.company.name = companyName;
+      if (companyUpdateData.name) updatedUser.company.name = updatedCompany.name;
+      if (companyUpdateData.logoUrl) updatedUser.company.logoUrl = updatedCompany.logoUrl;
     }
 
     // Delete old session and create new one with updated data

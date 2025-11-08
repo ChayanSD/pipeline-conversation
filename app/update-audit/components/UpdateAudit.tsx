@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { auditApi } from "@/lib/api";
 import toast from "react-hot-toast";
 import TableSkeleton from "../../add-new-audit/components/tableSkeleton";
-import { Pencil } from "lucide-react";
+import { CustomButton } from "@/components/common";
+import { FiEdit } from "react-icons/fi";
+
 
 type OptionState = { text: string; points: number };
 
@@ -381,7 +383,7 @@ export default function UpdateAudit() {
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-700 hover:bg-gray-50 rounded cursor-pointer"
               aria-label={titleEditable ? "Disable editing title" : "Enable editing title"}
             >
-              <Pencil size={12} />
+              <FiEdit size={12} />
             </button>
           </div>
           <div className="w-px h-0 bg-[#3b5163] mx-7"></div>
@@ -392,13 +394,17 @@ export default function UpdateAudit() {
             >
               Back to List
             </button>
-            <button
-              onClick={handleUpdate}
+            <CustomButton
+              variant="primary"
+              size="md"
+              className="flex-1"
+              fullRounded={true}
               disabled={submitting}
-              className="px-[20px] w-[200px] py-[12px] bg-[#F7AF41] hover:bg-[#F7AF41]/80 disabled:opacity-60 transition-all duration-300 rounded-full text-[18px] tracking-[0.352px] leading-normal cursor-pointer"
+              onClick={handleUpdate}
             >
               {submitting ? "Saving..." : "Save Audit"}
-            </button>
+            </CustomButton>
+           
           </div>
         </div>
 
@@ -603,7 +609,7 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-700 hover:bg-gray-50 rounded cursor-pointer"
                       aria-label={editableQuestions.has(rowIndex) ? "Disable editing question" : "Enable editing question"}
                     >
-                      <Pencil size={12} />
+                      <FiEdit size={12} />
                     </button>       
                   </div>
                 </td>
@@ -617,7 +623,7 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
                             value={getStatusValue(rowIndex, idx)}
                             onChange={(e) => setStatusValue(rowIndex, idx, e.target.value)}
                             disabled={!((editableStatus[rowIndex]?.has(idx)) ?? false)}
-                            className={`${button.color} ${button.borderColor} ${button.textColor} pr-10 pl-3 py-1.5 w-28 rounded-lg border font-medium text-sm outline-none disabled:opacity-70`}
+                            className={`${button.color} ${button.borderColor} ${button.textColor} pr-5 pl-3 py-1.5 w-28 rounded-lg border font-medium text-sm outline-none disabled:opacity-70`}
                           />
                           <button
                             type="button"
@@ -635,7 +641,7 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
                             className={`absolute right-1 top-1/2 -translate-y-1/2 p-0.5 ${button.textColor} hover:opacity-80 rounded cursor-pointer`}
                             aria-label={((editableStatus[rowIndex]?.has(idx)) ?? false) ? "Disable editing option" : "Enable editing option"}
                           >
-                            <Pencil size={10} />
+                            <FiEdit size={10} />
                           </button>
                         </div>
                       ))}

@@ -362,7 +362,7 @@ export default function Sidebar() {
               alt="Profile"
               width={180}
               height={199}
-              // onClick={handleLogout}
+              onClick={() => router.push('/profile')}
               style={{
                 width: 'clamp(60px, 15vw, 180px)',
                 height: 'clamp(60px, 15vw, 199px)'
@@ -371,7 +371,7 @@ export default function Sidebar() {
           ) : (
             <div 
               className="rounded bg-gray-300 flex items-center justify-center cursor-pointer"
-              onClick={handleLogout}
+              onClick={() => router.push('/profile')}
               style={{
                 width: 'clamp(60px, 15vw, 180px)',
                 height: 'clamp(60px, 15vw, 199px)'
