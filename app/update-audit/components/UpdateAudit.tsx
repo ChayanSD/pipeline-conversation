@@ -178,7 +178,7 @@ export default function UpdateAudit() {
       const question: Partial<{ text: string; options: OptionState[] }> = {};
       if (qText) question.text = qText;
       if (Array.isArray(labels) && labels.length === 5) {
-        question.options = labels.map((t, i) => ({ text: (t || `Option ${i + 1}`).trim(), points: i }));
+        question.options = labels.map((t, i) => ({ text: (t || `Option ${i + 1}`).trim(), points: i + 1 }));
       }
       questions.push(question);
     }
@@ -269,7 +269,7 @@ export default function UpdateAudit() {
                   }))
                 : Array.from({ length: 5 }, (_, i) => ({
                     text: `Option ${i + 1}`,
-                    points: i
+                    points: i + 1
                   }))
             }))
             .filter(q => q.text.length > 0);
