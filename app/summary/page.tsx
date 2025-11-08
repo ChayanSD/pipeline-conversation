@@ -130,7 +130,6 @@ export default function SummaryPage() {
                     } bg-[#E8E8E8]`}
                     style={{ aspectRatio: "1" }}
                   >
-                    {/* IMAGE VIEW (only when we actually have an image URL) */}
                     {selections[index] === "image" && images[index] && (
                       <>
                         <img
@@ -147,7 +146,6 @@ export default function SummaryPage() {
                       </>
                     )}
 
-                    {/* TEXT VIEW */}
                     {selections[index] === "text" && (
                       <div className="absolute inset-0 flex flex-col">
                         <textarea
@@ -169,10 +167,8 @@ export default function SummaryPage() {
                       </div>
                     )}
 
-                    {/* DEFAULT CHOICE VIEW */}
                     {!selections[index] && (
-                      <div className="relative w-full h-full">
-                        {/* Image half */}
+                      <div className="relative w-full h-full cursor-pointer">
                         <div
                           className="absolute inset-0 bg-[#E8E8E8]"
                           style={{
@@ -187,7 +183,6 @@ export default function SummaryPage() {
 
                         <hr className="w-px h-[500px] border border-[#AAA] absolute rotate-45 top-1/2 left-[156px] -translate-x-1/3 -translate-y-1/2" />
 
-                        {/* Text half */}
                         <div
                           className="absolute inset-0 bg-[#E8E8E8]"
                           style={{
@@ -202,7 +197,6 @@ export default function SummaryPage() {
                       </div>
                     )}
 
-                    {/* Hidden File Input */}
                     <input
                       type="file"
                       accept="image/*"
