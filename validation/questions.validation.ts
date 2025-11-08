@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 export const createOptionSchema = z.object({
   text: z.string().min(1, 'Option text is required'),
-  points: z.number().int().min(0, 'Points must be a non-negative integer'),
+  points: z.number().int().min(1, 'Points must be between 1 and 5').max(5, 'Points must be between 1 and 5'),
 });
 
 export const createQuestionSchema = z.object({

@@ -13,18 +13,19 @@ model User {
   name            String
   email           String  @unique
   passCode        String
-  companyName     String
+  companyId       String
   primaryColor    String
   secondaryColor  String?
   profileImageUrl String?
-  companyLogoUrl  String?
-
+  companyRole     String?
   role UserRole @default(USER)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   //Relations
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sentInvites     Invitation[] @relation("InvitedBy")
   presentations Presentation[]
   tests         Test[]
 
@@ -35,6 +36,46 @@ model User {
 enum UserRole {
   ADMIN
   USER
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  logoUrl   String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  //Relations
+  invites   Invitation[]
+  users     User[]
+  @@index([name])
+  @@map("companies")
+}
+
+model Invitation {
+  id          String       @id @default(cuid())
+  email       String
+  companyId   String
+  token       String       @unique
+  invitedById String
+  role        UserRole     @default(USER)
+  status      InviteStatus @default(PENDING)
+  expiresAt   DateTime
+  createdAt   DateTime     @default(now())
+
+  // Relations
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invitedBy   User     @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@map("invitations")
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
 }
 
 model Presentation {

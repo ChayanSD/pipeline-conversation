@@ -34,8 +34,9 @@ export default function SigninPage() {
       } else {
         setMessage(response.data.error || 'Login failed');
       }
-    } catch (error: any) {
-      setMessage(error.response?.data?.error || 'An error occurred');
+    } catch (error : unknown) {
+      const axiosError = error as { response?: { data?: { error?: string } } };
+      setMessage(axiosError.response?.data?.error || 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -122,14 +123,22 @@ export default function SigninPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-b from-yellow-400 to-yellow-500 text-gray-800 font-semibold py-2 rounded-lg shadow-md hover:opacity-90 transition-all disabled:opacity-70"
+              className="w-full bg-linear-to-b from-yellow-400 to-yellow-500 text-gray-800 font-semibold py-2 rounded-lg shadow-md hover:opacity-90 transition-all disabled:opacity-70"
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
-
+            <div className="text-center ">
+              Create an account ? 
+                <Link
+                  href="/signup"
+                  className="text-sm px-1 text-blue-500 hover:text-blue-600 underline"
+                >
+                   Signup
+                </Link>
+              </div>
             {message && (
               <p
-                className={`text-center text-sm ${message.includes('failed') ? 'text-red-500' : 'text-green-500'
+                className={`text-center text-sm ${(message.includes('failed') || message.includes('Invalid')) ? 'text-red-500' : 'text-green-500'
                   }`}
               >
                 {message}
