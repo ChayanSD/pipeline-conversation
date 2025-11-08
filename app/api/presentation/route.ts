@@ -1,19 +1,31 @@
 import prisma from "@/lib/db";
+import { getSession } from "@/lib/session";
 import { presentationSchema } from "@/validation/presentation.validation";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(): Promise<NextResponse> {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+    const userId = session.id;
+
     const presentations = await prisma.presentation.findMany({
+      where: {
+        userId: userId,
+      },
       include: {
-        categories: true,
-        tests: true,
-        user: {
-          select: {
-            name: true,
-            email: true,
+        categories: {
+          include: {
+            questions: {
+              include: {
+                options: true,
+              },
+            },
           },
         },
+        tests: true,
       },
       orderBy: {
         createdAt: "desc",

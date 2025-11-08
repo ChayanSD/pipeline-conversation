@@ -1,11 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import axios from "axios";
 import Image from "next/image";
 
+interface InvitationData {
+  email: string;
+  role: string;
+  company: {
+    id: string;
+    name: string;
+  };
+}
 
 export default function SignupPage() {
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -16,7 +28,10 @@ export default function SignupPage() {
     profileImageUrl: "",
     companyLogoUrl: "",
     role: "USER",
+    inviteToken: "",
   });
+  const [invitation, setInvitation] = useState<InvitationData | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [companyLogo, setCompanyLogo] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -26,6 +41,32 @@ export default function SignupPage() {
   const [profilePreview, setProfilePreview] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (token) {
+      fetchInvitation();
+    }
+  }, [token]);
+
+  const fetchInvitation = async () => {
+    try {
+      const response = await axios.get(`/api/invite?token=${token}`);
+      if (response.data.success) {
+        setInvitation(response.data.data);
+        setFormData((prev) => ({
+          ...prev,
+          email: response.data.data.email,
+          role: response.data.data.role,
+          inviteToken: token!,
+        }));
+        setInviteError(null);
+      }
+    } catch (error) {
+      const axiosError = error as { response?: { data?: { error?: string } } };
+      setInviteError(axiosError.response?.data?.error || "Invalid invitation");
+      setInvitation(null);
+    }
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>

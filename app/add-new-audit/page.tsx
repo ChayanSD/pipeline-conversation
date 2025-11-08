@@ -1,16 +1,14 @@
 "use client";
 
 import { useUser } from "@/contexts/UserContext";
-import { useTheme } from "@/contexts/ThemeContext";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import notFoundImg from "@/public/notFound2.png";
-import Image from "next/image";
-import AddNewAudit from "@/components/AddNewAudit/AddNewAudit";
+ 
+ 
+import AddNewAudit from "./AddNewAudit";
 
 export default function AddNewAuditPage() {
   const { user } = useUser();
-  const { theme } = useTheme();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
 
@@ -46,7 +44,7 @@ export default function AddNewAuditPage() {
   return (
     <div className="">
       <div className="mt-5">
-        <AddNewAudit/>
+        <AddNewAudit userId={user.id} />
       </div>
 
       {user.role === "ADMIN" && (
