@@ -6,7 +6,7 @@ import axios from 'axios';
 import Image from 'next/image';
 import logo from '@/public/logo.png';
 import { useState, useEffect } from 'react';
-import { Pencil } from 'lucide-react';
+import { FiEdit } from 'react-icons/fi';
 
 type NavigationItem = {
   name: string;
@@ -40,6 +40,7 @@ export default function Sidebar() {
   // Get user's primary color with opacity
   const primaryColor = user?.primaryColor || '#2B4055';
   const primaryColorWithOpacity = hexToRgba(primaryColor, 0.8); // 80% opacity for background
+  const primaryColorOverlay = hexToRgba(primaryColor, 0.70); // 70% opacity for BackgroundWrapper-style overlay
 
   // Load category names from sessionStorage
   useEffect(() => {
@@ -276,9 +277,28 @@ export default function Sidebar() {
             isActive = currentCategory === itemCategory;
           }
           const useSecondary = ((onNewAuditPage && item.href.startsWith('/add-new-audit')) || 
-                                (onUpdateAuditPage && item.href.startsWith('/update-audit')) ||
-                                (onTestPage && item.href.startsWith('/test')));
+                                (onUpdateAuditPage && item.href.startsWith('/update-audit')));
+          // Test page: active = white bg, inactive = primary color with opacity + white text
+          const isTestPageCategory = onTestPage && isCategoryItem;
           const isEditing = itemCategoryNumber !== null && editingCategory === itemCategoryNumber;
+          
+          // Determine background and text colors
+          let backgroundColor = 'white';
+          let textColor = primaryColor;
+          
+          if (useSecondary) {
+            // Create/Update pages: use secondary styling
+            backgroundColor = primaryColorWithOpacity;
+            textColor = isActive ? 'white' : '#ffffff80';
+          } else if (isTestPageCategory) {
+            // Test page: active = white, inactive = primary with opacity
+            backgroundColor = isActive ? 'white' : hexToRgba(primaryColor, 0.9);
+            textColor = isActive ? 'black' : 'white';
+          } else {
+            // Default: white background
+            backgroundColor = 'white';
+            textColor = isActive ? 'black' : primaryColor;
+          }
           
           return (
             <div
@@ -291,8 +311,8 @@ export default function Sidebar() {
               style={{
                 padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(0.75rem, 3vw, 1rem)',
                 marginLeft: 'clamp(0.75rem, 2vw, 1rem)',
-                backgroundColor: useSecondary ? primaryColorWithOpacity : 'white',
-                color: isActive ? (useSecondary ? 'white' : 'black') : (useSecondary ? '#ffffff80' : primaryColor),
+                backgroundColor: backgroundColor,
+                color: textColor,
                 border: (useSecondary ? '2px solid ##899AA9' : 'none'),
               }}
             >
@@ -320,7 +340,7 @@ export default function Sidebar() {
                   style={{ color: 'inherit' }}
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-between">
+                <div className="w-full h-full flex items-center justify-between relative">
                   <button
                     onClick={() => {
                       if (!isEditing) {
@@ -332,7 +352,44 @@ export default function Sidebar() {
                   >
                     {item.name}
                   </button>
-                  {isCategoryItem && itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage || onTestPage) && (
+            {isActive && <div>
+            <div 
+                className='absolute -right-5 -top-[26.6px] border-r-4 h-4 w-4 rounded rounded-r-full rotate-45 font-bold overflow-hidden'
+                style={{ 
+                  backgroundImage: 'url(/bg-img.png)',
+                  backgroundSize: 'contain',
+                  borderColor: (onNewAuditPage || onUpdateAuditPage) ? primaryColor : 'white',
+                }}
+              >
+                <div 
+                  style={{ 
+                    backgroundColor: primaryColorOverlay,
+                    position: 'absolute',
+                    inset: 0,
+                  }}
+                ></div>
+              </div>
+              <div 
+                className='absolute -right-5 -bottom-[26.6px] border-r-4 h-4 w-4 rounded rounded-r-full -rotate-45 font-bold overflow-hidden'
+                style={{ 
+                  backgroundImage: 'url(/bg-img.png)',
+                  backgroundSize: 'contain',
+                  borderColor: (onNewAuditPage || onUpdateAuditPage) ? primaryColor : 'white',
+                }}
+              >
+                <div 
+                  style={{ 
+                    backgroundColor: primaryColorOverlay,
+                    position: 'absolute',
+                    inset: 0,
+                  }}
+                ></div>
+              </div>
+            </div>
+
+            }
+              
+             {isCategoryItem && itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage) && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -342,7 +399,7 @@ export default function Sidebar() {
                       style={{ color: 'inherit' }}
                       aria-label="Edit category name"
                     >
-                      <Pencil size={12} />
+                      <FiEdit size={12} />
                     </button>
                   )}
                 </div>
