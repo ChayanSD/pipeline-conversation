@@ -4,6 +4,8 @@ import { UserProvider } from "@/contexts/UserContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { getSession } from "@/lib/session";
 import Sidebar from "@/components/Sidebar";
+import BackgroundWrapper from "@/components/BackgroundWrapper";
+import { Toaster } from "react-hot-toast";
 
 
 export const metadata: Metadata = {
@@ -23,12 +25,37 @@ export default async function RootLayout({
       <body >
         <UserProvider user={session}>
           <ThemeProvider>
-            <div className="flex h-screen ">
-              <Sidebar />
-              <main className="flex-1 overflow-auto ">
-                {children}
-              </main>
-            </div>
+            <BackgroundWrapper>
+              <div className="flex min-h-screen h-screen">
+                <Sidebar />
+                <main className="flex-1 overflow-auto">
+                  {children}
+                </main>
+              </div>
+            </BackgroundWrapper>
+            <Toaster 
+              position="top-right"
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  background: '#fff',
+                  color: '#333',
+                  fontFamily: 'Acumin Variable Concept',
+                },
+                success: {
+                  iconTheme: {
+                    primary: '#16a34a',
+                    secondary: '#fff',
+                  },
+                },
+                error: {
+                  iconTheme: {
+                    primary: '#dc2626',
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
           </ThemeProvider>
         </UserProvider>
       </body>

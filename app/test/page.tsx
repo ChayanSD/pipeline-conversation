@@ -2,13 +2,13 @@
 
 import { useUser } from "@/contexts/UserContext";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import "react-loading-skeleton/dist/skeleton.css";
 import toast from "react-hot-toast";
-import AddNewAudit from "./components/AddNewAudit";
-import TableSkeleton from "./components/tableSkeleton";
+import TestPresentation from "./components/TestPresentation";
+import TableSkeleton from "../add-new-audit/components/tableSkeleton";
 
-export default function AddNewAuditPage() {
+export default function TestPage() {
   const { user } = useUser();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
@@ -44,11 +44,8 @@ export default function AddNewAuditPage() {
 
   return (
     <div className="">
-      <div className="">
-        <AddNewAudit />
-      </div>
+      <TestPresentation />
     </div>
   );
 }
-
 

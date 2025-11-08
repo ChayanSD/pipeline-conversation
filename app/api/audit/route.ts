@@ -86,6 +86,15 @@ export async function GET(): Promise<Response> {
             },
           },
         },
+        tests: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1, // Get only the latest test
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
 

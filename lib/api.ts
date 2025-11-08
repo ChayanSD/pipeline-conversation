@@ -13,9 +13,23 @@ export const auditApi = {
     return response.data.data;
   },
 
+  getById: async (id: string): Promise<Presentation> => {
+    const response = await api.get(`/presentation/${id}`);
+    return response.data.presentation;
+  },
+
   create: async (data: AuditCreateData)=> {
     const response = await api.post('/audit', data);
     return response.data.data;
+  },
+
+  update: async (id: string, data: AuditCreateData): Promise<Presentation> => {
+    const response = await api.patch(`/audit/${id}`, data);
+    return response.data.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/presentation/${id}`);
   },
 };
 

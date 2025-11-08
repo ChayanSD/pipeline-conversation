@@ -17,7 +17,7 @@ export const AuditCreateSchema = z.object({
                 .array(
                   z.object({
                     text: z.string().min(1, "Option text is required"),
-                    points: z.number().int().min(0).default(0),
+                    points: z.number().int().min(1).max(5).default(1),
                   })
                 )
                 .min(1, "Each question must have at least one option"),

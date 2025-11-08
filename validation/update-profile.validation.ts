@@ -7,7 +7,8 @@ export const UpdateProfileSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, 'Invalid color format').optional(),
   secondaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, 'Invalid color format').optional(),
   companyRole: z.string().optional(),
-  profileImageUrl: z.url('Invalid URL').optional(),
+  profileImageUrl: z.union([z.string().url('Invalid URL'), z.literal('')]).optional(),
+  companyLogoUrl: z.union([z.string().url('Invalid URL'), z.literal('')]).optional(),
 });
 
 export type UpdateProfileData = z.infer<typeof UpdateProfileSchema>;
