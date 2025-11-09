@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/contexts/UserContext";
+import { useUpdateProfile } from "@/lib/hooks";
 import axios from "axios";
 import Image from "next/image";
 import toast from "react-hot-toast";
@@ -12,7 +13,7 @@ import { CustomButton } from "@/components/common";
 export default function ProfilePage() {
   const { user } = useUser();
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const updateProfileMutation = useUpdateProfile();
   const [message, setMessage] = useState("");
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [companyLogo, setCompanyLogo] = useState<File | null>(null);
@@ -101,7 +102,6 @@ export default function ProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setMessage("");
 
     try {
@@ -155,24 +155,16 @@ export default function ProfilePage() {
         dataToSend.companyLogoUrl = companyLogoUrl;
       }
 
-      const response = await axios.patch("/api/profile", dataToSend);
-
-      if (response.data.success) {
-        toast.success("Profile updated successfully!");
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-      } else {
-        setMessage(response.data.message || "Update failed");
-        toast.error(response.data.message || "Update failed");
-      }
+      await updateProfileMutation.mutateAsync(dataToSend);
+      toast.success("Profile updated successfully!");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error) {
       const axiosError = error as { response?: { data?: { error?: string } } };
       const errorMessage = axiosError.response?.data?.error || "An error occurred";
       setMessage(errorMessage);
       toast.error(errorMessage);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -443,10 +435,10 @@ export default function ProfilePage() {
               size="md"
               className="flex-1"
               fullRounded={true}
-              disabled={loading}
+              disabled={updateProfileMutation.isPending || uploadingProfile || uploadingLogo}
               onClick={handleSubmit}
             >
-              {loading ? "Saving..." : "Save it"}
+              {updateProfileMutation.isPending || uploadingProfile || uploadingLogo ? "Saving..." : "Save it"}
             </CustomButton>
           </div>
 

@@ -1,28 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { auditApi, testApi } from "@/lib/api";
+import { useAudit, useTestQuestions, useSubmitTest } from "@/lib/hooks";
 import { useUser } from "@/contexts/UserContext";
 import toast from "react-hot-toast";
-import { Presentation } from "@/lib/types";
 import TableSkeleton from "../../add-new-audit/components/tableSkeleton";
-
-interface QuestionWithCategory {
-  id: string;
-  text: string;
-  categoryId: string;
-  options: Array<{
-    id: string;
-    text: string;
-    points: number;
-  }>;
-  category: {
-    id: string;
-    name: string;
-    presentationId: string;
-  };
-}
 
 export default function TestPresentation() {
   const router = useRouter();
@@ -31,15 +14,15 @@ export default function TestPresentation() {
   const currentCategory = parseInt(searchParams.get('category') || '1', 10);
   const { user } = useUser();
   
-  const [presentation, setPresentation] = useState<Presentation | null>(null);
-  const [questions, setQuestions] = useState<QuestionWithCategory[]>([]);
+  const { data: auditData, isLoading: auditLoading, error: auditError } = useAudit(presentationId);
+  const { data: questionsData, isLoading: questionsLoading, error: questionsError } = useTestQuestions(presentationId);
+  const submitTestMutation = useSubmitTest();
+  
   const [answers, setAnswers] = useState<Record<string, string>>({}); // questionId -> optionId
   const [categoryScores, setCategoryScores] = useState<Record<string, number>>({}); // categoryId -> total score
-  const [totalOverallScore, setTotalOverallScore] = useState<number>(0); // Overall score percentage (0-100)
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const primaryColor = user?.primaryColor || '#2B4055';
-  // Fetch presentation and questions
+
+  // Handle routing and category parameter
   useEffect(() => {
     if (!presentationId) {
       toast.error("Presentation ID is missing");
@@ -52,40 +35,35 @@ export default function TestPresentation() {
       router.replace(`/test?presentationId=${presentationId}&category=1`);
       return;
     }
-
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [auditData, questionsData] = await Promise.all([
-          auditApi.getById(presentationId),
-          testApi.getQuestionsForPresentation(presentationId)
-        ]);
-        
-        setPresentation(auditData);
-        setQuestions(questionsData);
-
-        // Store category names in sessionStorage for sidebar
-        if (typeof window !== 'undefined' && auditData.categories) {
-          auditData.categories.forEach((category, index) => {
-            const categoryNumber = index + 1;
-            if (category.name) {
-              sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, category.name);
-            }
-          });
-          // Dispatch event to update sidebar
-          window.dispatchEvent(new Event('categoryNameUpdated'));
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        toast.error("Failed to load audit. Please try again.");
-        router.push("/");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
   }, [presentationId, router, searchParams]);
+
+  // Store category names in sessionStorage when audit data is loaded
+  useEffect(() => {
+    if (auditData && typeof window !== 'undefined' && auditData.categories) {
+      auditData.categories.forEach((category, index) => {
+        const categoryNumber = index + 1;
+        if (category.name) {
+          sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, category.name);
+        }
+      });
+      // Dispatch event to update sidebar
+      window.dispatchEvent(new Event('categoryNameUpdated'));
+    }
+  }, [auditData]);
+
+  // Handle errors
+  useEffect(() => {
+    if (auditError || questionsError) {
+      toast.error("Failed to load audit. Please try again.");
+      router.push("/");
+    }
+  }, [auditError, questionsError, router]);
+
+  const loading = auditLoading || questionsLoading;
+  const presentation = auditData || null;
+  
+  // Memoize questions to prevent unnecessary re-renders
+  const questions = useMemo(() => questionsData || [], [questionsData]);
 
   // Calculate category scores when answers change
   useEffect(() => {
@@ -112,13 +90,6 @@ export default function TestPresentation() {
     });
 
     setCategoryScores(scores);
-
-    // Calculate total score
-    const totalScore = presentation.categories.reduce((sum, cat) => {
-      return sum + (scores[cat.id] || 0);
-    }, 0);
-    
-    setTotalOverallScore(totalScore);
   }, [answers, questions, presentation]);
 
   const handleAnswerChange = (questionId: string, optionId: string) => {
@@ -128,6 +99,8 @@ export default function TestPresentation() {
     }));
   };
 
+  // Note: handleSubmit is kept for potential future use or manual submission
+  // Currently, test submission may be handled automatically or through navigation
   const handleSubmit = async () => {
     if (!user || !presentationId) return;
 
@@ -139,13 +112,12 @@ export default function TestPresentation() {
     }
 
     try {
-      setSubmitting(true);
       const answerArray = Object.entries(answers).map(([questionId, optionId]) => ({
         questionId,
         optionId
       }));
 
-      const result = await testApi.submit({
+      const result = await submitTestMutation.mutateAsync({
         userId: user.id,
         presentationId,
         answers: answerArray
@@ -156,10 +128,11 @@ export default function TestPresentation() {
     } catch (error) {
       console.error("Error submitting test:", error);
       toast.error("Failed to submit audit. Please try again.");
-    } finally {
-      setSubmitting(false);
     }
   };
+
+  // Suppress unused variable warning - function may be used in future or via ref
+  void handleSubmit;
 
   // Filter questions by selected category
   const displayedQuestions = questions.filter(q => {

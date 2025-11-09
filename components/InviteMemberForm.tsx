@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import axios from 'axios';
+import { useSendInvite } from '@/lib/hooks';
 
 interface InviteMemberFormProps {
   companyId: string;
@@ -11,34 +11,31 @@ interface InviteMemberFormProps {
 export default function InviteMemberForm({ companyId, invitedById }: InviteMemberFormProps) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('USER');
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const sendInviteMutation = useSendInvite();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setMessage('');
 
     try {
-      const response = await axios.post('/api/invite', {
+      const response = await sendInviteMutation.mutateAsync({
         email,
         companyId,
         invitedById,
-        role,
+        ...(role && { role }),
       });
 
-      if (response.data.success) {
+      if (response.success) {
         setMessage('Invitation sent successfully!');
         setEmail('');
         setRole('USER');
       } else {
-        setMessage(response.data.message || 'Failed to send invitation');
+        setMessage(response.message || 'Failed to send invitation');
       }
-    } catch (error) {
-      const axiosError = error as { response?: { data?: { error?: string } } };
-      setMessage(axiosError.response?.data?.error || 'An error occurred');
-    } finally {
-      setLoading(false);
+    } catch (error: unknown) {
+      const apiError = error as { message?: string };
+      setMessage(apiError.message || 'An error occurred');
     }
   };
 
@@ -79,10 +76,10 @@ export default function InviteMemberForm({ companyId, invitedById }: InviteMembe
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={sendInviteMutation.isPending}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Sending...' : 'Send Invitation'}
+            {sendInviteMutation.isPending ? 'Sending...' : 'Send Invitation'}
           </button>
 
           {message && (

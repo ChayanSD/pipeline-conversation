@@ -2,7 +2,7 @@
 
 import { useUser } from '@/contexts/UserContext';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import axios from 'axios';
+import { useLogout } from '@/lib/hooks';
 import Image from 'next/image';
 import logo from '@/public/logo.png';
 import { useState, useEffect } from 'react';
@@ -188,9 +188,11 @@ export default function Sidebar() {
     setEditingCategory(null);
   };
 
+  const logoutMutation = useLogout();
+
   const handleLogout = async () => {
     try {
-      await axios.post('/api/auth/logout');
+      await logoutMutation.mutateAsync();
       window.location.href = '/signin';
     } catch (error) {
       console.error('Logout failed:', error);
@@ -300,7 +302,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="pt-4 overflow-hidden" style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
+      <nav className="pt-4 " style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
         {onResultPage ? (
           <>
             {/* Area Of Urgent Focus */}
@@ -503,7 +505,6 @@ export default function Sidebar() {
         })}
           </>
         )}
-        gg
       </nav>
 
       {/* User Profile Section or Action Buttons */}
