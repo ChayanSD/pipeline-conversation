@@ -300,7 +300,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="pt-4 overflow-hidden" style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
+      <nav className="pt-4 " style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
         {onResultPage ? (
           <>
             {/* Area Of Urgent Focus */}
@@ -503,7 +503,6 @@ export default function Sidebar() {
         })}
           </>
         )}
-        gg
       </nav>
 
       {/* User Profile Section or Action Buttons */}
