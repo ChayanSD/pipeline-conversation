@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { useInvite, useRegister } from "@/lib/hooks";
 import axios from "axios";
 import Image from "next/image";
 
@@ -31,10 +32,8 @@ export default function SignupPage() {
     inviteToken: "",
   });
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
-  const [inviteError, setInviteError] = useState<string | null>(null);
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [companyLogo, setCompanyLogo] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [uploadingProfile, setUploadingProfile] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -42,31 +41,23 @@ export default function SignupPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  useEffect(() => {
-    if (token) {
-      fetchInvitation();
-    }
-  }, [token]);
+  const { data: inviteData, error: inviteQueryError, isLoading: inviteLoading } = useInvite(token);
+  const registerMutation = useRegister();
 
-  const fetchInvitation = async () => {
-    try {
-      const response = await axios.get(`/api/invite?token=${token}`);
-      if (response.data.success) {
-        setInvitation(response.data.data);
-        setFormData((prev) => ({
-          ...prev,
-          email: response.data.data.email,
-          role: response.data.data.role,
-          inviteToken: token!,
-        }));
-        setInviteError(null);
-      }
-    } catch (error) {
-      const axiosError = error as { response?: { data?: { error?: string } } };
-      setInviteError(axiosError.response?.data?.error || "Invalid invitation");
+  useEffect(() => {
+    if (inviteData && token) {
+      setInvitation(inviteData as unknown as InvitationData);
+      setFormData((prev) => ({
+        ...prev,
+        email: (inviteData as unknown as InvitationData).email,
+        role: (inviteData as unknown as InvitationData).role,
+        inviteToken: token,
+      }));
+    }
+    if (inviteQueryError) {
       setInvitation(null);
     }
-  };
+  }, [inviteData, inviteQueryError, token]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -122,7 +113,6 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setMessage("");
 
     try {
@@ -135,25 +125,23 @@ export default function SignupPage() {
         companyLogoUrl = await uploadToCloudinary(companyLogo);
 
       const dataToSend = {
-        ...formData,
-        profileImageUrl: formData.profileImageUrl || profileImageUrl,
-        companyLogoUrl: formData.companyLogoUrl || companyLogoUrl,
+        name: formData.name,
+        email: formData.email,
+        passCode: formData.passCode,
+        token: formData.inviteToken,
       };
 
-      const response = await axios.post("/api/auth/register", dataToSend);
+      const response = await registerMutation.mutateAsync(dataToSend);
 
-      if (response.data.success) {
+      if (response.success) {
         setMessage("Registration successful!");
-        const role = response.data.data.role;
-        window.location.href = role === "ADMIN" ? "/dashboard" : "/";
+        window.location.href = "/";
       } else {
-        setMessage(response.data.message || "Registration failed");
+        setMessage("Registration failed");
       }
     } catch (error) {
-      const axiosError = error as { response?: { data?: { error?: string } } };
-      setMessage(axiosError.response?.data?.error || "An error occurred");
-    } finally {
-      setLoading(false);
+      const apiError = error as { message?: string };
+      setMessage(apiError.message || "An error occurred");
     }
   };
 
@@ -408,10 +396,10 @@ export default function SignupPage() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={registerMutation.isPending || inviteLoading}
               className="w-full mt-3 bg-[#ff9d00] text-white py-3 rounded-full font-medium hover:bg-[rgb(255,189,66)] transition-all shadow-md disabled:opacity-50"
             >
-              {loading ? "Creating Account..." : "Signup"}
+              {registerMutation.isPending ? "Creating Account..." : "Signup"}
             </button>
 
             {message && (
