@@ -3,91 +3,48 @@
 import { useUser } from '@/contexts/UserContext';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import axios from 'axios';
 import InviteMemberForm from '@/components/InviteMemberForm';
 import DashboardSkeleton from '@/components/DashboardSkeleton';
 import CustomButton from '@/components/common/CustomButton';
-import { auditApi } from '@/lib/api';
+import { useAuthCheck, useAllUsers, useAudits } from '@/lib/hooks';
 import "react-loading-skeleton/dist/skeleton.css";
 import { Users, FileText, FolderTree, UserPlus } from 'lucide-react';
 
-interface DashboardStats {
-  totalUsers: number;
-  totalAudits: number;
-  totalCategories: number;
-}
 
 export default function DashboardPage() {
   const { user } = useUser();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(user);
+  const { data: authData, isLoading: authLoading } = useAuthCheck();
+  const { data: usersData, isLoading: usersLoading } = useAllUsers(1);
+  const { data: audits, isLoading: auditsLoading } = useAudits();
   const [showInviteForm, setShowInviteForm] = useState(false);
-  const [stats, setStats] = useState<DashboardStats>({
-    totalUsers: 0,
-    totalAudits: 0,
-    totalCategories: 0,
-  });
-  const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
-    // Manual authentication check
-    const checkAuth = async () => {
-      try {
-        const response = await axios.get('/api/auth/check');
-
-        if (!response.data.authenticated) {
-          router.push('/signin');
-          return;
-        }
-
-        if (response.data.user.role !== 'ADMIN') {
-          router.push('/');
-          return;
-        }
-
-        setCurrentUser(response.data.user);
-        setIsLoading(false);
-        fetchStats();
-      } catch (error) {
-        console.error(error);
+    if (!authLoading && authData) {
+      if (!authData.authenticated) {
         router.push('/signin');
+        return;
       }
-    };
 
-    checkAuth();
-  }, [router]);
-
-  const fetchStats = async () => {
-    try {
-      setLoadingStats(true);
-      
-      // Fetch users count
-      const usersResponse = await axios.get('/api/admin/all-users?limit=1');
-      const totalUsers = usersResponse.data.total || 0;
-
-      // Fetch audits count
-      const audits = await auditApi.getAll();
-      const totalAudits = audits.length;
-
-      // Calculate total categories (from all audits)
-      const totalCategories = audits.reduce((acc, audit) => {
-        return acc + (audit.categories?.length || 0);
-      }, 0);
-
-      setStats({
-        totalUsers,
-        totalAudits,
-        totalCategories,
-      });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    } finally {
-      setLoadingStats(false);
+      if (authData.user?.role !== 'ADMIN') {
+        router.push('/');
+        return;
+      }
     }
-  };
+  }, [authData, authLoading, router]);
 
-  if (isLoading || loadingStats || !user) {
+  const isLoading = authLoading || !user;
+  const loadingStats = usersLoading || auditsLoading;
+  const currentUser = authData?.user || user;
+
+  // Calculate stats
+  const totalUsers = usersData?.total || 0;
+  const totalAudits = audits?.length || 0;
+  const totalCategories = audits?.reduce((acc, audit) => {
+    return acc + (audit.categories?.length || 0);
+  }, 0) || 0;
+
+  if (isLoading || loadingStats) {
     return <DashboardSkeleton />;
   }
 
@@ -108,19 +65,19 @@ export default function DashboardPage() {
   const statCards = [
     {
       title: 'Total Users',
-      value: stats.totalUsers,
+      value: totalUsers,
       icon: Users,
       color: 'bg-blue-100 text-blue-600',
     },
     {
       title: 'Total Audits',
-      value: stats.totalAudits,
+      value: totalAudits,
       icon: FileText,
       color: 'bg-green-100 text-green-600',
     },
     {
       title: 'Total Categories',
-      value: stats.totalCategories,
+      value: totalCategories,
       icon: FolderTree,
       color: 'bg-purple-100 text-purple-600',
     },
@@ -172,7 +129,7 @@ export default function DashboardPage() {
             {showInviteForm ? 'Hide Form' : 'Invite Member'}
           </CustomButton>
         </div>
-        {showInviteForm && currentUser?.company && (
+        {showInviteForm && currentUser && 'company' in currentUser && currentUser.company && (
           <div className="mt-6 pt-6 border-t border-gray-200">
             <InviteMemberForm
               companyId={currentUser.company.id}

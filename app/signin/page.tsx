@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import axios from 'axios';
+import { useLogin } from '@/lib/hooks';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Eye, EyeOff } from 'lucide-react';
@@ -11,9 +11,9 @@ export default function SigninPage() {
     email: '',
     passCode: '',
   });
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const loginMutation = useLogin();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -22,23 +22,20 @@ export default function SigninPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setMessage('');
 
     try {
-      const response = await axios.post('/api/auth/login', formData);
+      const response = await loginMutation.mutateAsync(formData);
 
-      if (response.data.success) {
-        const userRole = response.data.role;
+      if (response.success) {
+        const userRole = response.role;
         window.location.href = userRole === 'ADMIN' ? '/dashboard' : '/';
       } else {
-        setMessage(response.data.error || 'Login failed');
+        setMessage('Login failed');
       }
-    } catch (error : unknown) {
-      const axiosError = error as { response?: { data?: { error?: string } } };
-      setMessage(axiosError.response?.data?.error || 'An error occurred');
-    } finally {
-      setLoading(false);
+    } catch (error: unknown) {
+      const apiError = error as { message?: string };
+      setMessage(apiError.message || 'An error occurred');
     }
   };
 
@@ -122,10 +119,10 @@ export default function SigninPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loginMutation.isPending}
               className="w-full bg-linear-to-b from-yellow-400 to-yellow-500 text-gray-800 font-semibold py-2 rounded-lg shadow-md hover:opacity-90 transition-all disabled:opacity-70"
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loginMutation.isPending ? 'Logging in...' : 'Login'}
             </button>
             <div className="text-center ">
               Create an account ? 

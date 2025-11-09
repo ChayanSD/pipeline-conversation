@@ -1,11 +1,11 @@
 "use client";
 
 import { useUser } from "@/contexts/UserContext";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import notFoundImg from "@/public/notFound2.png";
 import Image from "next/image";
-import { auditApi } from "@/lib/api";
+import { useAuthCheck, useAudits, useDeleteAudit } from "@/lib/hooks";
 import { Presentation } from "@/lib/types";
 import { Edit, Trash2, Play } from "lucide-react";
 import toast from "react-hot-toast";
@@ -21,56 +21,39 @@ interface AuditWithScore extends Presentation {
 export default function Home() {
   const { user } = useUser();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  const [audits, setAudits] = useState<AuditWithScore[]>([]);
-  const [loadingAudits, setLoadingAudits] = useState(true);
+  const { data: authData, isLoading: authLoading } = useAuthCheck();
+  const { data: auditsData, isLoading: auditsLoading, error: auditsError } = useAudits();
+  const deleteAuditMutation = useDeleteAudit();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [auditToDelete, setAuditToDelete] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    // Manual authentication check
-    const checkAuth = async () => {
-      try {
-        const response = await fetch("/api/auth/check");
-        const data = await response.json();
-
-        if (!data.authenticated) {
-          toast.error("Please sign in to continue");
-          router.push("/signin");
-          return;
-        }
-
-        setIsLoading(false);
-        // Fetch audits after authentication
-        fetchAudits();
-      } catch (error) {
-        console.error(error);
-        toast.error("Authentication failed. Please sign in again");
+    if (!authLoading && authData) {
+      if (!authData.authenticated) {
+        toast.error("Please sign in to continue");
         router.push("/signin");
+        return;
       }
-    };
-
-    checkAuth();
-  }, [router]);
-
-  const fetchAudits = async () => {
-    try {
-      setLoadingAudits(true);
-      const data = await auditApi.getAll();
-      // Process audits to include latest score
-      const auditsWithScores: AuditWithScore[] = data.map((audit: Presentation & { tests?: Array<{ totalScore: number }> }) => ({
-        ...audit,
-        latestScore: audit.tests && audit.tests.length > 0 ? audit.tests[0].totalScore : undefined,
-      }));
-      setAudits(auditsWithScores);
-    } catch (error) {
-      console.error("Error fetching audits:", error);
-      toast.error("Failed to fetch audits. Please try again.");
-    } finally {
-      setLoadingAudits(false);
     }
-  };
+  }, [authData, authLoading, router]);
+
+  useEffect(() => {
+    if (auditsError) {
+      toast.error("Failed to fetch audits. Please try again.");
+    }
+  }, [auditsError]);
+
+  // Process audits to include latest score
+  const audits = useMemo<AuditWithScore[]>(() => {
+    if (!auditsData) return [];
+    return auditsData.map((audit: Presentation & { tests?: Array<{ totalScore: number }> }) => ({
+      ...audit,
+      latestScore: audit.tests && audit.tests.length > 0 ? audit.tests[0].totalScore : undefined,
+    }));
+  }, [auditsData]);
+
+  const isLoading = authLoading || !user;
+  const loadingAudits = auditsLoading;
 
   const formatDate = (dateString: string | Date) => {
     const date = new Date(dateString);
@@ -120,17 +103,13 @@ export default function Home() {
     if (!auditToDelete) return;
     
     try {
-      setDeleting(true);
-      await auditApi.delete(auditToDelete);
+      await deleteAuditMutation.mutateAsync(auditToDelete);
       toast.success("Audit deleted successfully");
-      fetchAudits();
       setDeleteModalOpen(false);
       setAuditToDelete(null);
     } catch (error) {
       console.error("Error deleting audit:", error);
       toast.error("Failed to delete audit. Please try again.");
-    } finally {
-      setDeleting(false);
     }
   };
 
@@ -283,7 +262,7 @@ export default function Home() {
       <ConfirmationModal
         isOpen={deleteModalOpen}
         onClose={() => {
-          if (!deleting) {
+          if (!deleteAuditMutation.isPending) {
             setDeleteModalOpen(false);
             setAuditToDelete(null);
           }
@@ -294,7 +273,7 @@ export default function Home() {
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
-        loading={deleting}
+        loading={deleteAuditMutation.isPending}
       />
     </div>
   );

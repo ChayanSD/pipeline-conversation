@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { auditApi } from "@/lib/api";
+import { useCreateAudit } from "@/lib/hooks";
 import toast from "react-hot-toast";
 import { CustomButton } from "@/components/common";
 
@@ -12,10 +12,10 @@ export default function AddNewAudit() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentCategory = parseInt(searchParams.get('category') || '1', 10);
+  const createAuditMutation = useCreateAudit();
   
   const [title, setTitle] = useState("");
   const [categoryName, setCategoryName] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [tableQuestions, setTableQuestions] = useState<{ index: number; text: string }[]>([]);
   const [statusMap, setStatusMap] = useState<Record<number, string[]>>({});
 
@@ -179,8 +179,6 @@ export default function AddNewAudit() {
         }
       }
 
-      setSubmitting(true);
-
       // Transform auditData to match API format
       const categories = (auditData.categories || [])
         .map(cat => {
@@ -210,12 +208,11 @@ export default function AddNewAudit() {
 
       if (categories.length === 0) {
         toast.error("Add at least one question in the table");
-        setSubmitting(false);
         return;
       }
 
       // Call single audit API with full data
-      await auditApi.create({
+      await createAuditMutation.mutateAsync({
         title: (auditData.title || title).trim(),
         categories
       });
@@ -256,8 +253,6 @@ export default function AddNewAudit() {
     } catch (e) {
       toast.error("Failed to create audit. Please try again.");
       console.error(e);
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -313,10 +308,10 @@ export default function AddNewAudit() {
               size="md"
               className="flex-1"
               fullRounded={true}
-              disabled={submitting}
+              disabled={createAuditMutation.isPending}
               onClick={handleCreate}
             >
-              {submitting ? "Creating..." : "Create Audit"}
+              {createAuditMutation.isPending ? "Creating..." : "Create Audit"}
             </CustomButton>
           </div>
         </div>
