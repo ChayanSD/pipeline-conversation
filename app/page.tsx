@@ -3,7 +3,7 @@
 import { useUser } from "@/contexts/UserContext";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import notFoundImg from "@/public/notFound.png";
+import notFoundImg from "@/public/notFound2.png";
 import Image from "next/image";
 import { auditApi } from "@/lib/api";
 import { Presentation } from "@/lib/types";

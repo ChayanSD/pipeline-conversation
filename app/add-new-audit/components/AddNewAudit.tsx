@@ -289,7 +289,7 @@ export default function AddNewAudit() {
           </div>
        
       </header>
-      <main className="px-24 pt-5 bg-white h-full pb-10">
+      <main className="px-24 pt-5 bg-white h-[92.4vh] pb-10">
         <div className="flex gap items-center justify-between mb-4">
           <div className="flex-1">
             <input

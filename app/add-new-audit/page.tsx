@@ -47,7 +47,6 @@ export default function AddNewAuditPage() {
       <div className="">
         <AddNewAudit />
       </div>
-
     </div>
   );
 }
