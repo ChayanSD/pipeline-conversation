@@ -5,9 +5,9 @@ const RoleEnum = z.enum(["ADMIN", "USER"]);
 export const SignupSchema = z
   .object({
     name: z.string().min(1, "Name is required"),
-    email: z.email("Invalid email address").optional(),
+    email: z.union([z.string().email("Invalid email address"), z.literal("")]).optional(),
     passCode: z.string().min(4, "Passcode must be at least 4 characters long"),
-    companyName: z.string().optional(),
+    companyName: z.union([z.string(), z.literal("")]).optional(),
     primaryColor: z.string().optional(),
     secondaryColor: z.string().optional(),
     profileImageUrl: z.string().optional(),
@@ -15,16 +15,17 @@ export const SignupSchema = z
     companyId: z.string().optional(),
     companyLogoUrl: z.string().optional(),
     role: RoleEnum.default("USER"),
-    inviteToken: z.string().optional(),
+    inviteToken: z.union([z.string().min(1), z.literal("")]).optional(),
   })
   .refine(
     (data) => {
-      // If inviteToken is present, email is not required (it's from invite)
-      if (data.inviteToken) {
+      // If inviteToken is present and not empty, skip email validation
+      const hasValidToken = data.inviteToken && typeof data.inviteToken === 'string' && data.inviteToken.trim().length > 0;
+      if (hasValidToken) {
         return true;
       }
-      // If no inviteToken, email is required
-      return data.email && data.email.length > 0;
+      // If no inviteToken, email is required and must be valid
+      return data.email && typeof data.email === 'string' && data.email.trim().length > 0 && z.string().email().safeParse(data.email).success;
     },
     {
       message: "Email is required for normal registration",
@@ -33,12 +34,13 @@ export const SignupSchema = z
   )
   .refine(
     (data) => {
-      // If inviteToken is present, companyName is not required
-      if (data.inviteToken) {
+      // If inviteToken is present and not empty, skip companyName validation
+      const hasValidToken = data.inviteToken && typeof data.inviteToken === 'string' && data.inviteToken.trim().length > 0;
+      if (hasValidToken) {
         return true;
       }
-      // If no inviteToken, companyName is required
-      return data.companyName && data.companyName.length > 0;
+      // If no inviteToken, companyName is required (must be non-empty string)
+      return data.companyName && typeof data.companyName === 'string' && data.companyName.trim().length > 0;
     },
     {
       message: "Company name is required for normal registration",

@@ -408,7 +408,7 @@ export default function AddNewAudit() {
           <div className="w-px h-0 bg-[#3b5163] mx-7"></div>
           <div className="flex gap-3">
             <button
-              onClick={() => router.push("/dashboard")}
+              onClick={() => router.push("/")}
               className="px-[20px] py-[12px] bg-[#CECECE] hover:bg-[#CECECE]/80 transition-all duration-300 rounded-full text-[18px] tracking-[0.352px] leading-normal cursor-pointer"
             >
               Back to List

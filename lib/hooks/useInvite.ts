@@ -13,10 +13,11 @@ export function useInvite(token: string | null) {
     queryKey: inviteKeys.detail(token || ''),
     queryFn: async () => {
       if (!token) throw new Error('Token is required');
-      const response = await apiClient.get<{ invite: unknown }>('/invite', {
+      const response = await apiClient.get<{ data: unknown }>('/invite', {
         params: { token },
       });
-      return response.invite;
+      console.log(response);
+      return response.data;
     },
     enabled: !!token,
   });
@@ -28,6 +29,19 @@ export function useSendInvite() {
     mutationFn: async (data: { email: string; companyId: string; invitedById: string; role?: string }) => {
       const response = await apiClient.post<{ success: boolean; message?: string }>(
         '/invite',
+        data
+      );
+      return response;
+    },
+  });
+}
+
+// Send audit invitation
+export function useSendAuditInvite() {
+  return useMutation({
+    mutationFn: async (data: { email: string; presentationId: string }) => {
+      const response = await apiClient.post<{ success: boolean; message?: string }>(
+        '/invite/audit',
         data
       );
       return response;

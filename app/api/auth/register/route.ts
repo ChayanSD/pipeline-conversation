@@ -35,7 +35,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // --- Invite-based registration ---
       const invitation = await prisma.invitation.findUnique({
         where: { token: inviteToken },
-        include: { company: true },
+        include: { 
+          company: true,
+          invitedBy: true, // Include the user who sent the invitation to get their colors
+        },
       });
 
       if (
@@ -60,6 +63,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
 
+      // Use inviter's colors if available, otherwise use provided colors or defaults
+      const inviterPrimaryColor = invitation.invitedBy?.primaryColor;
+      const inviterSecondaryColor = invitation.invitedBy?.secondaryColor;
+
       user = await prisma.user.create({
         data: {
           name,
@@ -67,8 +74,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           passCode: hashedPass,
           companyId: invitation.companyId,
           role: invitation.role,
-          primaryColor: primaryColor ?? "#000000",
-          secondaryColor: secondaryColor ?? "#FFFFFF",
+          primaryColor: inviterPrimaryColor || primaryColor || "#456987",
+          secondaryColor: inviterSecondaryColor || secondaryColor || "#F7AF41",
           profileImageUrl,
         },
         include: { company: true },
@@ -82,6 +89,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           expiresAt: new Date(),
         },
       });
+
+      // If invitation has a presentationId, create a SharedAudit record so user can see it
+      if (invitation.presentationId) {
+        try {
+          await prisma.sharedAudit.create({
+            data: {
+              userId: user.id,
+              presentationId: invitation.presentationId,
+              sharedById: invitation.invitedById,
+            },
+          });
+        } catch (error) {
+          // Ignore error if share already exists (shouldn't happen, but safe to ignore)
+          console.log("SharedAudit might already exist:", error);
+        }
+      }
     } else {
       // --- Normal registration ---
       if (!companyName) {
@@ -109,8 +132,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           email: email!,
           passCode: hashedPass,
           role: "USER",
-          primaryColor: primaryColor ?? "#000000",
-          secondaryColor: secondaryColor ?? "#FFFFFF",
+          primaryColor: primaryColor ??  "#456987",
+          secondaryColor: secondaryColor ?? "#F7AF41",
           profileImageUrl,
           company: {
             create: {

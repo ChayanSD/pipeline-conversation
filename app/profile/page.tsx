@@ -28,8 +28,8 @@ export default function ProfilePage() {
     email: "",
     passCode: "",
     companyName: "",
-    primaryColor: "#000000",
-    secondaryColor: "#000000",
+    primaryColor:  "#456987",
+    secondaryColor: "#F7AF41",
     profileImageUrl: "",
     companyLogoUrl: "",
   });
@@ -41,8 +41,8 @@ export default function ProfilePage() {
         email: user.email || "",
         passCode: "",
         companyName: user.company?.name || "",
-        primaryColor: user.primaryColor || "#2B4055",
-        secondaryColor: user.secondaryColor || "#456987",
+        primaryColor: user.primaryColor || "#456987",
+        secondaryColor: user.secondaryColor || "#F7AF41",
         profileImageUrl: user.profileImageUrl || "",
         companyLogoUrl: user.company?.logoUrl || "",
       });

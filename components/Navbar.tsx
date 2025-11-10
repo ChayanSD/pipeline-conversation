@@ -52,16 +52,6 @@ export default function Navbar() {
               Profile
             </button>
 
-            {/* Admin Dashboard Link */}
-            {user.role === 'ADMIN' && (
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="bg-blue-500 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Admin Dashboard
-              </button>
-            )}
-
             {/* User Info and Logout */}
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">

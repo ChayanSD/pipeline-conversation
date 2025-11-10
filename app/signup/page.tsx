@@ -24,8 +24,8 @@ export default function SignupPage() {
     email: "",
     passCode: "",
     companyName: "",
-    primaryColor: "#000000",
-    secondaryColor: "#000000",
+    primaryColor: "#456987" ,
+    secondaryColor: "#F7AF41",
     profileImageUrl: "",
     companyLogoUrl: "",
     role: "USER",
@@ -43,15 +43,18 @@ export default function SignupPage() {
 
   const { data: inviteData, error: inviteQueryError, isLoading: inviteLoading } = useInvite(token);
   const registerMutation = useRegister();
-
+console.log(inviteData);
   useEffect(() => {
     if (inviteData && token) {
       setInvitation(inviteData as unknown as InvitationData);
+      const inviteEmail = (inviteData as unknown as InvitationData).email;
       setFormData((prev) => ({
         ...prev,
-        email: (inviteData as unknown as InvitationData).email,
+        email: inviteEmail,
         role: (inviteData as unknown as InvitationData).role,
         inviteToken: token,
+        // Set a default name from email (extract name part before @) or use email
+        name: prev.name || inviteEmail.split('@')[0] || 'User',
       }));
     }
     if (inviteQueryError) {
@@ -119,16 +122,32 @@ export default function SignupPage() {
       let profileImageUrl = "";
       let companyLogoUrl = "";
 
-      if (profileImage)
+      // Only upload images if not using invitation token (token-based signup doesn't need company logo)
+      if (!token) {
+        if (profileImage)
+          profileImageUrl = await uploadToCloudinary(profileImage);
+        if (companyLogo)
+          companyLogoUrl = await uploadToCloudinary(companyLogo);
+      } else if (profileImage) {
+        // For token-based signup, only upload profile image if provided
         profileImageUrl = await uploadToCloudinary(profileImage);
-      if (companyLogo)
-        companyLogoUrl = await uploadToCloudinary(companyLogo);
+      }
 
       const dataToSend = {
         name: formData.name,
         email: formData.email,
         passCode: formData.passCode,
-        token: formData.inviteToken,
+        inviteToken: formData.inviteToken || token || undefined, // Use inviteToken to match validation schema
+        // Only include company-related fields if not using token
+        ...(token ? {} : {
+          companyName: formData.companyName || undefined,
+          companyLogoUrl: companyLogoUrl || undefined,
+          // Only include colors if not using token (invited users get colors from inviter)
+          primaryColor: formData.primaryColor,
+          secondaryColor: formData.secondaryColor,
+        }),
+        // Profile image can be included for both cases
+        profileImageUrl: profileImageUrl || undefined,
       };
 
       const response = await registerMutation.mutateAsync(dataToSend);
@@ -172,21 +191,26 @@ export default function SignupPage() {
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-0.5">
-            {/* Name */}
-            <div>
-              <label htmlFor="name" className="block text-sm text-[#2d3e50] mb-2">
-                Name
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                required
-                value={formData.name}
-                onChange={handleInputChange}
-                className="w-full bg-[#f5f5f5] border-0 rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300"
-              />
-            </div>
+            {/* Show all fields if no token, only email and passCode if token exists */}
+            {!token ? (
+              <>
+                {/* Name */}
+                <div>
+                  <label htmlFor="name" className="block text-sm text-[#2d3e50] mb-2">
+                    Name
+                  </label>
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    required={!token}
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="w-full bg-[#f5f5f5] border-0 rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                  />
+                </div>
+              </>
+            ) : null}
 
             {/* Email */}
             <div>
@@ -201,7 +225,8 @@ export default function SignupPage() {
                   required
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full bg-[#f5f5f5] border-0 rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                  disabled={!!token}
+                  className="w-full bg-[#f5f5f5] border-0 rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300 disabled:opacity-70 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -212,7 +237,6 @@ export default function SignupPage() {
                 Passcode
               </label>
               <div className="relative">
-
                 {/* Input field */}
                 <input
                   id="passCode"
@@ -260,138 +284,142 @@ export default function SignupPage() {
               </div>
             </div>
 
-
-            {/* Company Name */}
-            <div>
-              <label htmlFor="companyName" className="block text-sm text-[#2d3e50] mb-2">
-                Company Name
-              </label>
-              <div>
-                <input
-                  id="companyName"
-                  name="companyName"
-                  type="text"
-                  value={formData.companyName}
-                  onChange={handleInputChange}
-                  className="w-full bg-[#f5f5f5] border-0 rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300"
-                />
-              </div>
-            </div>
-
-            {/* Colors and Images Row */}
-            <div className="grid grid-cols-2 gap-2">
-              {/* Primary Color */}
-              <div>
-                <label className="block text-sm text-[#2d3e50] mb-2">
-                  Primary Color
-                </label>
-                <div className="relative">
-                  <input
-                    id="primaryColor"
-                    name="primaryColor"
-                    type="color"
-                    value={formData.primaryColor}
-                    onChange={handleInputChange}
-                    className="absolute opacity-0 w-full h-full cursor-pointer"
-                  />
-                  <div className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer">
-                    <span className="flex items-center gap-2">
-                      <div
-                        className="w-5 h-5 rounded border border-gray-300"
-                        style={{ backgroundColor: formData.primaryColor }}
-                      />
-                      Chosen primary color
-                    </span>
+            {/* Show additional fields only if no token */}
+            {!token ? (
+              <>
+                {/* Company Name */}
+                <div>
+                  <label htmlFor="companyName" className="block text-sm text-[#2d3e50] mb-2">
+                    Company Name
+                  </label>
+                  <div>
+                    <input
+                      id="companyName"
+                      name="companyName"
+                      type="text"
+                      value={formData.companyName}
+                      onChange={handleInputChange}
+                      className="w-full bg-[#f5f5f5] border-0 rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    />
                   </div>
                 </div>
-              </div>
 
-              {/* Secondary Color */}
-              <div>
-                <label className="block text-sm text-[#2d3e50] mb-2">
-                  Secondary Color
-                </label>
-                <div className="relative">
-                  <input
-                    id="secondaryColor"
-                    name="secondaryColor"
-                    type="color"
-                    value={formData.secondaryColor}
-                    onChange={handleInputChange}
-                    className="absolute opacity-0 w-full h-full cursor-pointer"
-                  />
-                  <div className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer">
-                    <span className="flex items-center gap-2">
-                      <div
-                        className="w-5 h-5 rounded border border-gray-300"
-                        style={{ backgroundColor: formData.secondaryColor }}
+                {/* Colors and Images Row */}
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Primary Color */}
+                  <div>
+                    <label className="block text-sm text-[#2d3e50] mb-2">
+                      Primary Color
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="primaryColor"
+                        name="primaryColor"
+                        type="color"
+                        value={formData.primaryColor}
+                        onChange={handleInputChange}
+                        className="absolute opacity-0 w-full h-full cursor-pointer"
                       />
-                      Chosen secondary color
-                    </span>
+                      <div className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer">
+                        <span className="flex items-center gap-2">
+                          <div
+                            className="w-5 h-5 rounded border border-gray-300"
+                            style={{ backgroundColor: formData.primaryColor }}
+                          />
+                          Chosen primary color
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Secondary Color */}
+                  <div>
+                    <label className="block text-sm text-[#2d3e50] mb-2">
+                      Secondary Color
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="secondaryColor"
+                        name="secondaryColor"
+                        type="color"
+                        value={formData.secondaryColor}
+                        onChange={handleInputChange}
+                        className="absolute opacity-0 w-full h-full cursor-pointer"
+                      />
+                      <div className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer">
+                        <span className="flex items-center gap-2">
+                          <div
+                            className="w-5 h-5 rounded border border-gray-300"
+                            style={{ backgroundColor: formData.secondaryColor }}
+                          />
+                          Chosen secondary color
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Company Logo */}
+                  <div>
+                    <label className="block text-sm text-[#2d3e50] mb-2">
+                      Company Logo
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileChange(e, "company")}
+                        className="absolute opacity-0 w-full h-full cursor-pointer"
+                        id="companyLogo"
+                      />
+                      <label
+                        htmlFor="companyLogo"
+                        className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer"
+                      >
+                        <span className="truncate">
+                          {logoPreview ? "File selected" : "No files chosen"}
+                        </span>
+                        <span className="bg-white px-3 py-1 rounded text-xs border border-gray-300 ml-2 whitespace-nowrap">
+                          Choose File
+                        </span>
+                      </label>
+                    </div>
+                    {uploadingLogo && (
+                      <p className="text-xs text-[#2d3e50] mt-1">Uploading...</p>
+                    )}
+                  </div>
+
+                  {/* Profile Photo */}
+                  <div>
+                    <label className="block text-sm text-[#2d3e50] mb-2">
+                      Profile Photo
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileChange(e, "profile")}
+                        className="absolute opacity-0 w-full h-full cursor-pointer"
+                        id="profilePhoto"
+                      />
+                      <label
+                        htmlFor="profilePhoto"
+                        className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer"
+                      >
+                        <span className="truncate">
+                          {profilePreview ? "File selected" : "No files chosen"}
+                        </span>
+                        <span className="bg-white px-3 py-1 rounded text-xs border border-gray-300 ml-2 whitespace-nowrap">
+                          Choose File
+                        </span>
+                      </label>
+                    </div>
+                    {uploadingProfile && (
+                      <p className="text-xs text-[#2d3e50] mt-1">Uploading...</p>
+                    )}
                   </div>
                 </div>
-              </div>
-
-              {/* Company Logo */}
-              <div>
-                <label className="block text-sm text-[#2d3e50] mb-2">
-                  Company Logo
-                </label>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "company")}
-                    className="absolute opacity-0 w-full h-full cursor-pointer"
-                    id="companyLogo"
-                  />
-                  <label
-                    htmlFor="companyLogo"
-                    className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer"
-                  >
-                    <span className="truncate">
-                      {logoPreview ? "File selected" : "No files chosen"}
-                    </span>
-                    <span className="bg-white px-3 py-1 rounded text-xs border border-gray-300 ml-2 whitespace-nowrap">
-                      Choose File
-                    </span>
-                  </label>
-                </div>
-                {uploadingLogo && (
-                  <p className="text-xs text-[#2d3e50] mt-1">Uploading...</p>
-                )}
-              </div>
-
-              {/* Profile Photo */}
-              <div>
-                <label className="block text-sm text-[#2d3e50] mb-2">
-                  Profile Photo
-                </label>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "profile")}
-                    className="absolute opacity-0 w-full h-full cursor-pointer"
-                    id="profilePhoto"
-                  />
-                  <label
-                    htmlFor="profilePhoto"
-                    className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer"
-                  >
-                    <span className="truncate">
-                      {profilePreview ? "File selected" : "No files chosen"}
-                    </span>
-                    <span className="bg-white px-3 py-1 rounded text-xs border border-gray-300 ml-2 whitespace-nowrap">
-                      Choose File
-                    </span>
-                  </label>
-                </div>
-                {uploadingProfile && (
-                  <p className="text-xs text-[#2d3e50] mt-1">Uploading...</p>
-                )}
-              </div>
-            </div>
+              </>
+            ) : null}
 
             {/* Submit Button */}
             <button

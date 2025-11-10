@@ -28,8 +28,7 @@ export default function SigninPage() {
       const response = await loginMutation.mutateAsync(formData);
 
       if (response.success) {
-        const userRole = response.role;
-        window.location.href = userRole === 'ADMIN' ? '/dashboard' : '/';
+        window.location.href = '/';
       } else {
         setMessage('Login failed');
       }
