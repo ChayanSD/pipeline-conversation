@@ -63,9 +63,14 @@ export function useRegister() {
   return useMutation({
     mutationFn: async (data: {
       name: string;
-      email: string;
+      email?: string;
       passCode: string;
-      token: string;
+      inviteToken?: string;
+      companyName?: string;
+      primaryColor?: string;
+      secondaryColor?: string;
+      profileImageUrl?: string;
+      companyLogoUrl?: string;
     }) => {
       const response = await apiClient.post<{ success: boolean }>('/auth/register', data);
       return response;

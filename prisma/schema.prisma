@@ -28,6 +28,7 @@ model User {
   sentInvites     Invitation[] @relation("InvitedBy")
   presentations Presentation[]
   tests         Test[]
+  sharedAudits SharedAudit[]
 
   @@index([email])
   @@map("users")
@@ -54,19 +55,21 @@ model Company {
 }
 
 model Invitation {
-  id          String       @id @default(cuid())
-  email       String
-  companyId   String
-  token       String       @unique
-  invitedById String
-  role        UserRole     @default(USER)
-  status      InviteStatus @default(PENDING)
-  expiresAt   DateTime
-  createdAt   DateTime     @default(now())
+  id            String        @id @default(cuid())
+  email         String
+  companyId     String
+  token         String        @unique
+  invitedById   String
+  role          UserRole      @default(USER)
+  status        InviteStatus  @default(PENDING)
+  expiresAt     DateTime
+  presentationId String?       // Link to specific audit/presentation
+  createdAt     DateTime      @default(now())
 
   // Relations
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invitedBy   User     @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invitedBy     User          @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  presentation  Presentation? @relation(fields: [presentationId], references: [id], onDelete: Cascade)
 
   @@map("invitations")
 }
@@ -79,13 +82,15 @@ enum InviteStatus {
 }
 
 model Presentation {
-  id         String     @id @default(cuid())
+  id         String       @id @default(cuid())
   userId     String
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   title      String
   categories Category[]
   tests      Test[]
   summary    Summary?
+  invitations Invitation[]
+  sharedWith SharedAudit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -183,4 +188,17 @@ model Summary {
   updatedAt DateTime @updatedAt
 
   @@map("summaries")
+}
+
+model SharedAudit {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  presentationId String
+  presentation   Presentation @relation(fields: [presentationId], references: [id], onDelete: Cascade)
+  sharedById     String       // User who shared the audit
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, presentationId]) // Prevent duplicate shares
+  @@map("shared_audits")
 }

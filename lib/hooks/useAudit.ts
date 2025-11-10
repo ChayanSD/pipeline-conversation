@@ -17,8 +17,8 @@ export function useAudits() {
   return useQuery({
     queryKey: auditKeys.lists(),
     queryFn: async () => {
-      const response = await apiClient.get<{ data: Presentation[] }>('/audit');
-      return response.data;
+      const response = await apiClient.get<{ data: Presentation[]; isInvitedUser?: boolean }>('/audit');
+      return response;
     },
   });
 }

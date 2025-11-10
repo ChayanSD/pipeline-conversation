@@ -88,10 +88,71 @@ export async function GET(): Promise<Response> {
       return Response.json({ error: "Not authenticated" }, { status: 401 });
     }
     const userId = session.id;
-    const audits = await prisma.presentation.findMany({
+    
+    // Check if user was invited via audit invitation
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        company: true,
+      },
+    });
+
+    if (!user) {
+      return Response.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Check if user has an accepted invitation with a presentationId (for invited users who signed up)
+    const acceptedInvitation = await prisma.invitation.findFirst({
+      where: {
+        email: user.email,
+        status: "ACCEPTED",
+        presentationId: { not: null },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Get all audits shared with this user
+    const sharedAudits = await prisma.sharedAudit.findMany({
       where: {
         userId: userId,
       },
+      select: {
+        presentationId: true,
+      },
+    });
+
+    const sharedAuditIds = sharedAudits.map(sa => sa.presentationId);
+
+    let whereClause: 
+      | { id: { in: string[] } }
+      | { OR: Array<{ userId: string } | { id: { in: string[] } }> }
+      | { userId: string };
+    
+    if (acceptedInvitation?.presentationId) {
+      // User was invited to a specific audit via signup - show that audit + any shared audits
+      const auditIds = [acceptedInvitation.presentationId, ...sharedAuditIds];
+      whereClause = {
+        id: { in: auditIds },
+      };
+    } else if (sharedAuditIds.length > 0) {
+      // User has shared audits - show their own audits + shared audits
+      whereClause = {
+        OR: [
+          { userId: userId },
+          { id: { in: sharedAuditIds } },
+        ],
+      };
+    } else {
+      // Normal user - show all their audits
+      whereClause = {
+        userId: userId,
+      };
+    }
+
+    const audits = await prisma.presentation.findMany({
+      where: whereClause,
       include: {
         categories: {
           include: {
@@ -112,11 +173,16 @@ export async function GET(): Promise<Response> {
       },
     });
 
+    // Determine if user is an invited user (signed up via invitation) - they can't create audits
+    // Users who signed up via invitation can see all audits shared with them, but can't create new ones
+    const isInvitedUser = !!acceptedInvitation?.presentationId;
+
     return NextResponse.json(
       {
         success: true,
         message: "Audit fetch successfully",
         data: audits,
+        isInvitedUser: isInvitedUser, // Flag to indicate if user is invited (and only has that one audit)
       },
       { status: 200 }
     );

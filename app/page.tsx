@@ -5,14 +5,15 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import notFoundImg from "@/public/notFound2.png";
 import Image from "next/image";
-import { useAuthCheck, useAudits, useDeleteAudit } from "@/lib/hooks";
+import { useAuthCheck, useAudits, useDeleteAudit, useSendAuditInvite } from "@/lib/hooks";
 import { Presentation } from "@/lib/types";
-import { Edit, Trash2, Play } from "lucide-react";
+import { Edit, Trash2, Play, Mail } from "lucide-react";
 import toast from "react-hot-toast";
 import "react-loading-skeleton/dist/skeleton.css";
 import HomeSkeleton from "@/components/HomeSkeleton";
 import CustomButton from "@/components/common/CustomButton";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
+import InviteAuditModal from "@/components/InviteAuditModal";
 
 interface AuditWithScore extends Presentation {
   latestScore?: number;
@@ -24,8 +25,12 @@ export default function Home() {
   const { data: authData, isLoading: authLoading } = useAuthCheck();
   const { data: auditsData, isLoading: auditsLoading, error: auditsError } = useAudits();
   const deleteAuditMutation = useDeleteAudit();
+  const sendInviteMutation = useSendAuditInvite();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [auditToDelete, setAuditToDelete] = useState<string | null>(null);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [auditToInvite, setAuditToInvite] = useState<{ id: string; title: string } | null>(null);
+  const [isInvitedUser, setIsInvitedUser] = useState(false);
 
   useEffect(() => {
     if (!authLoading && authData) {
@@ -43,10 +48,22 @@ export default function Home() {
     }
   }, [auditsError]);
 
-  // Process audits to include latest score
+  // Process audits to include latest score and check if user is invited
   const audits = useMemo<AuditWithScore[]>(() => {
     if (!auditsData) return [];
-    return auditsData.map((audit: Presentation & { tests?: Array<{ totalScore: number }> }) => ({
+    
+    // Check if response includes isInvitedUser flag
+    const responseData = auditsData as { data?: Presentation[]; isInvitedUser?: boolean } | Presentation[];
+    
+    if (responseData && typeof responseData === 'object' && !Array.isArray(responseData) && 'isInvitedUser' in responseData) {
+      setIsInvitedUser(responseData.isInvitedUser || false);
+    }
+    
+    const auditsList = Array.isArray(responseData) 
+      ? responseData 
+      : responseData?.data || [];
+    
+    return auditsList.map((audit: Presentation & { tests?: Array<{ totalScore: number }> }) => ({
       ...audit,
       latestScore: audit.tests && audit.tests.length > 0 ? audit.tests[0].totalScore : undefined,
     }));
@@ -113,6 +130,29 @@ export default function Home() {
     }
   };
 
+  const handleInviteClick = (audit: AuditWithScore) => {
+    setAuditToInvite({ id: audit.id, title: audit.title });
+    setInviteModalOpen(true);
+  };
+
+  const handleInvite = async (email: string) => {
+    if (!auditToInvite) return;
+    
+    try {
+      await sendInviteMutation.mutateAsync({
+        email,
+        presentationId: auditToInvite.id,
+      });
+      toast.success("Invitation sent successfully!");
+    } catch (error) {
+      const errorMessage = (error as { response?: { data?: { error?: string } }; message?: string })?.response?.data?.error 
+        || (error as { message?: string })?.message 
+        || "Failed to send invitation";
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
   if (isLoading || loadingAudits || !user) {
     return (
      <HomeSkeleton />
@@ -144,24 +184,29 @@ export default function Home() {
                 NO AUDIT CREATED
               </p>
               <p className="text-[#2D2D2D] mb-2 font-normal" style={{ fontSize: 'clamp(1rem, 4vw, 1.2rem)' }}>
-                Start your first audit to see your performance insights here.
+                {isInvitedUser 
+                  ? "You have been invited to take an audit. Please wait for the audit to be shared with you."
+                  : "Start your first audit to see your performance insights here."
+                }
               </p>
-              <CustomButton
-                variant="primary"
-                size="lg"
-                style={{
-                  width: '318px',
-                  height: '50px',
-                  padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)',
-                  fontSize: 'clamp(0.875rem, 2.5vw, 1rem)'
-                }}
-                onClick={() => {
-                  clearAuditSessionStorage();
-                  router.push("/add-new-audit/?category=1");
-                }}
-              >
-                Start New Audit
-              </CustomButton>
+              {!isInvitedUser && (
+                <CustomButton
+                  variant="primary"
+                  size="lg"
+                  style={{
+                    width: '318px',
+                    height: '50px',
+                    padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem)',
+                    fontSize: 'clamp(0.875rem, 2.5vw, 1rem)'
+                  }}
+                  onClick={() => {
+                    clearAuditSessionStorage();
+                    router.push("/add-new-audit/?category=1");
+                  }}
+                >
+                  Start New Audit
+                </CustomButton>
+              )}
             </div>
           </div>
         </div>
@@ -181,16 +226,18 @@ export default function Home() {
               Track and compare all your AUDIT audit reports in one place. View scores, dates, and improvement insights instantly.
             </p>
           </div>
-          <CustomButton
-            variant="primary"
-            size="lg"
-            onClick={() => {
-              clearAuditSessionStorage();
-              router.push("/add-new-audit/?category=1");
-            }}
-          >
-            Create New AUDIT
-          </CustomButton>
+          {!isInvitedUser && (
+            <CustomButton
+              variant="primary"
+              size="lg"
+              onClick={() => {
+                clearAuditSessionStorage();
+                router.push("/add-new-audit/?category=1");
+              }}
+            >
+              Create New AUDIT
+            </CustomButton>
+          )}
         </div>
       </div>
 
@@ -226,29 +273,42 @@ export default function Home() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => router.push(`/update-audit/?edit=${audit.id}&category=1`)}
-                        className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 flex items-center gap-1"
-                      >
-                        <Edit size={14} />
-                        Edit
-                      </button>
-                      <CustomButton
-                        variant="redLight"
-                        size="sm"
-                        fullRounded={false}
-                        leftIcon={<Trash2 size={14} />}
-                        onClick={() => handleDeleteClick(audit.id)}
-                      >
-                        Delete
-                      </CustomButton>
+                      {!isInvitedUser && (
+                        <>
+                          <button
+                            onClick={() => router.push(`/update-audit/?edit=${audit.id}&category=1`)}
+                            className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 flex items-center gap-1"
+                          >
+                            <Edit size={14} />
+                            Edit
+                          </button>
+                          <CustomButton
+                            variant="redLight"
+                            size="sm"
+                            fullRounded={false}
+                            leftIcon={<Trash2 size={14} />}
+                            onClick={() => handleDeleteClick(audit.id)}
+                          >
+                            Delete
+                          </CustomButton>
+                        </>
+                      )}
                       <button
                         onClick={() => router.push(`/test?presentationId=${audit.id}&category=1`)}
-                        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 flex items-center gap-1"
+                        className="px-3 cursor-pointer py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 flex items-center gap-1"
                       >
                         <Play size={14} />
                         Start Audit
                       </button>
+                      {!isInvitedUser && (
+                        <button
+                          onClick={() => handleInviteClick(audit)}
+                          className="px-3 cursor-pointer py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-1"
+                        >
+                          <Mail size={14} />
+                          Invite
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -275,6 +335,20 @@ export default function Home() {
         variant="danger"
         loading={deleteAuditMutation.isPending}
       />
+
+      {/* Invite Audit Modal */}
+      {auditToInvite && (
+        <InviteAuditModal
+          isOpen={inviteModalOpen}
+          onClose={() => {
+            setInviteModalOpen(false);
+            setAuditToInvite(null);
+          }}
+          onInvite={handleInvite}
+          auditTitle={auditToInvite.title}
+          loading={sendInviteMutation.isPending}
+        />
+      )}
     </div>
   );
 }
