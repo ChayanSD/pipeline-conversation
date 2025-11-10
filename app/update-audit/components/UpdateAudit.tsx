@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auditApi } from "@/lib/api";
+import { Presentation } from "@/lib/types";
 import toast from "react-hot-toast";
 import TableSkeleton from "../../add-new-audit/components/tableSkeleton";
 import { CustomButton } from "@/components/common";
 import { FiEdit } from "react-icons/fi";
+import SummarySection from "@/components/SummarySection";
 
 
 type OptionState = { text: string; points: number };
@@ -24,14 +26,77 @@ export default function UpdateAudit() {
   const [statusMap, setStatusMap] = useState<Record<number, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [titleEditable, setTitleEditable] = useState(false);
+  const lastProcessedEditIdRef = useRef<string | null>(null);
+  const [sessionStorageCategories, setSessionStorageCategories] = useState<Array<{ id: string; name: string }>>([]);
+  
+  // Load categories from sessionStorage
+  const loadCategoriesFromStorage = () => {
+    if (typeof window === 'undefined') return;
+    const auditData = sessionStorage.getItem('auditData');
+    if (auditData) {
+      try {
+        const parsed = JSON.parse(auditData);
+        if (Array.isArray(parsed.categories)) {
+          const categories = parsed.categories.map((cat: { id?: string; name?: string }, idx: number) => ({
+            id: cat.id || `temp-${idx}`,
+            name: cat.name || `Category ${idx + 1}`,
+          }));
+          setSessionStorageCategories(categories);
+        }
+      } catch {}
+    }
+  };
 
-  // Fetch audit data from API and populate sessionStorage
+  useEffect(() => {
+    loadCategoriesFromStorage();
+    const handleStorageChange = () => {
+      loadCategoriesFromStorage();
+    };
+    window.addEventListener('categoryNameUpdated', handleStorageChange);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('categoryNameUpdated', handleStorageChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  // Fetch audit data from API and populate sessionStorage (only if audit ID changes)
   useEffect(() => {
     if (!editId) {
       toast.error("Audit ID is missing");
       setLoading(false);
       router.push("/");
       return;
+    }
+
+    // If we've already processed this editId, don't refetch
+    if (lastProcessedEditIdRef.current === editId) {
+      setLoading(false);
+      return;
+    }
+
+    // Check if we already have data for this audit ID in sessionStorage
+    // If yes, skip the API call to avoid refetching and overwriting summary data
+    if (typeof window !== 'undefined') {
+      const existingAuditData = sessionStorage.getItem('auditData');
+      if (existingAuditData) {
+        try {
+          const parsed = JSON.parse(existingAuditData);
+          if (parsed.id === editId) {
+            // We have data for this audit ID in sessionStorage, don't refetch
+            // This means we're navigating from summary page or already loaded this audit
+            // Load title and dispatch event to update sidebar
+            if (parsed.title) {
+              setTitle(parsed.title);
+            }
+            // Dispatch event to update sidebar with existing data
+            window.dispatchEvent(new Event('categoryNameUpdated'));
+            setLoading(false);
+            lastProcessedEditIdRef.current = editId;
+            return;
+          }
+        } catch {}
+      }
     }
 
     const fetchAuditData = async () => {
@@ -47,6 +112,7 @@ export default function UpdateAudit() {
           id: audit.id,
           title: audit.title,
           categories: audit.categories.map(cat => ({
+            id: cat.id,
             name: cat.name,
             questions: cat.questions.map(q => ({
               text: q.text,
@@ -60,6 +126,21 @@ export default function UpdateAudit() {
 
         // Store in sessionStorage
         if (typeof window !== 'undefined') {
+          // Check if summary data exists for this audit - preserve it if same audit ID
+          const existingSummaryData = sessionStorage.getItem('summaryData');
+          const existingAuditData = sessionStorage.getItem('auditData');
+          let shouldPreserveSummary = false;
+          
+          if (existingAuditData && existingSummaryData) {
+            try {
+              const parsedAudit = JSON.parse(existingAuditData);
+              if (parsedAudit.id === editId) {
+                // Same audit ID - preserve existing summary data
+                shouldPreserveSummary = true;
+              }
+            } catch {}
+          }
+          
           sessionStorage.setItem('auditData', JSON.stringify(auditData));
           
           // Store category names separately
@@ -86,8 +167,137 @@ export default function UpdateAudit() {
             });
           });
           
+          // Only update summary data if audit ID changed or if no summary exists
+          if (!shouldPreserveSummary) {
+            // Store summary data - initialize with empty values if no summary exists
+            const auditWithSummary = audit as Presentation & { summary?: { categoryRecommendations?: string | unknown; nextSteps?: string | unknown; overallDetails?: string | null } | null };
+            if (auditWithSummary.summary) {
+              const summary = auditWithSummary.summary;
+              let categoryRecommendations = summary.categoryRecommendations 
+                ? (typeof summary.categoryRecommendations === 'string' 
+                    ? JSON.parse(summary.categoryRecommendations) 
+                    : summary.categoryRecommendations)
+                : [];
+              
+              // Map temp IDs to real category IDs if needed
+              // This handles the case where summaryData has temp IDs from create mode
+              if (Array.isArray(categoryRecommendations)) {
+                categoryRecommendations = categoryRecommendations.map((rec: { categoryId: string; recommendation: string }, index: number) => {
+                  // If categoryId is a temp ID (temp-0, temp-1, etc.), map it to real category ID
+                  if (rec.categoryId && rec.categoryId.startsWith('temp-')) {
+                    const tempIndex = parseInt(rec.categoryId.replace('temp-', ''), 10);
+                    if (!isNaN(tempIndex) && audit.categories[tempIndex]) {
+                      return {
+                        categoryId: audit.categories[tempIndex].id,
+                        recommendation: rec.recommendation || "",
+                      };
+                    }
+                  }
+                  // If categoryId already exists in audit categories, keep it
+                  const categoryExists = audit.categories.some(cat => cat.id === rec.categoryId);
+                  if (categoryExists) {
+                    return rec;
+                  }
+                  // If categoryId doesn't match, try to map by index
+                  if (audit.categories[index]) {
+                    return {
+                      categoryId: audit.categories[index].id,
+                      recommendation: rec.recommendation || "",
+                    };
+                  }
+                  return rec;
+                });
+              }
+              
+              // Ensure all categories have entries (even if empty)
+              const allCategoryRecommendations = audit.categories.map((cat) => {
+                const existing = Array.isArray(categoryRecommendations) 
+                  ? categoryRecommendations.find((rec: { categoryId: string }) => rec.categoryId === cat.id)
+                  : null;
+                return existing || {
+                  categoryId: cat.id,
+                  recommendation: "",
+                };
+              });
+              
+              const summaryData = {
+                categoryRecommendations: allCategoryRecommendations,
+                nextSteps: summary.nextSteps
+                  ? (typeof summary.nextSteps === 'string'
+                      ? JSON.parse(summary.nextSteps)
+                      : summary.nextSteps)
+                  : [],
+                overallDetails: summary.overallDetails || undefined,
+              };
+              sessionStorage.setItem('summaryData', JSON.stringify(summaryData));
+            } else {
+              // Initialize empty summary data for all categories with real IDs
+              const emptySummaryData = {
+                categoryRecommendations: audit.categories.map((cat) => ({
+                  categoryId: cat.id,
+                  recommendation: "",
+                })),
+                nextSteps: [],
+                overallDetails: "",
+              };
+              sessionStorage.setItem('summaryData', JSON.stringify(emptySummaryData));
+            }
+          } else {
+            // If preserving summary, still need to map temp IDs to real IDs
+            const existingSummaryDataStr = sessionStorage.getItem('summaryData');
+            if (existingSummaryDataStr) {
+              try {
+                const existingSummaryData = JSON.parse(existingSummaryDataStr);
+                if (existingSummaryData.categoryRecommendations && Array.isArray(existingSummaryData.categoryRecommendations)) {
+                  // Map temp IDs to real category IDs
+                  const mappedRecommendations = existingSummaryData.categoryRecommendations.map((rec: { categoryId: string; recommendation: string }, index: number) => {
+                    if (rec.categoryId && rec.categoryId.startsWith('temp-')) {
+                      const tempIndex = parseInt(rec.categoryId.replace('temp-', ''), 10);
+                      if (!isNaN(tempIndex) && audit.categories[tempIndex]) {
+                        return {
+                          categoryId: audit.categories[tempIndex].id,
+                          recommendation: rec.recommendation || "",
+                        };
+                      }
+                    }
+                    // If categoryId already exists in audit categories, keep it
+                    const categoryExists = audit.categories.some(cat => cat.id === rec.categoryId);
+                    if (categoryExists) {
+                      return rec;
+                    }
+                    // If categoryId doesn't match, try to map by index
+                    if (audit.categories[index]) {
+                      return {
+                        categoryId: audit.categories[index].id,
+                        recommendation: rec.recommendation || "",
+                      };
+                    }
+                    return rec;
+                  });
+                  
+                  // Ensure all categories have entries
+                  const allCategoryRecommendations = audit.categories.map((cat) => {
+                    const existing = mappedRecommendations.find((rec: { categoryId: string }) => rec.categoryId === cat.id);
+                    return existing || {
+                      categoryId: cat.id,
+                      recommendation: "",
+                    };
+                  });
+                  
+                  existingSummaryData.categoryRecommendations = allCategoryRecommendations;
+                  sessionStorage.setItem('summaryData', JSON.stringify(existingSummaryData));
+                }
+              } catch (error) {
+                console.error("Error mapping temp IDs to real category IDs:", error);
+              }
+            }
+          }
+          
           // Dispatch event to update sidebar
           window.dispatchEvent(new Event('categoryNameUpdated'));
+          
+          // Mark this editId as processed
+          lastProcessedEditIdRef.current = editId;
         }
       } catch (error) {
         console.error("Error fetching audit data:", error);
@@ -106,6 +316,11 @@ export default function UpdateAudit() {
     if (typeof window === 'undefined') return;
     const loadCategoryName = () => {
       try {
+        // If category is 8, it's the summary
+        if (currentCategory === 8) {
+          setCategoryName('Summary');
+          return;
+        }
         // Try to get from specific category name storage
         const storedName = sessionStorage.getItem(`auditData:categoryName:${currentCategory}`);
         if (storedName) {
@@ -130,7 +345,7 @@ export default function UpdateAudit() {
           }
         }
       } catch {
-        setCategoryName(`Category ${currentCategory}`);
+        setCategoryName(currentCategory === 8 ? 'Summary' : `Category ${currentCategory}`);
       }
     };
 
@@ -287,10 +502,41 @@ export default function UpdateAudit() {
         return;
       }
 
-      // Call update audit API with full data
+      // Get summary data from sessionStorage if it exists
+      let summaryData = null;
+      if (typeof window !== 'undefined') {
+        const summaryDataStr = sessionStorage.getItem('summaryData');
+        if (summaryDataStr) {
+          try {
+            const parsed = JSON.parse(summaryDataStr);
+            // Map category recommendations by index since categories are recreated in order
+            // The categoryRecommendations will be mapped to new category IDs in the API
+            // For now, we'll use the index-based mapping which will be handled by the API
+            const mappedRecommendations = Array.isArray(parsed.categoryRecommendations)
+              ? parsed.categoryRecommendations.map((rec: { categoryId: string; recommendation: string }) => ({
+                  // Use index-based mapping - the API will handle mapping to actual category IDs
+                  categoryId: rec.categoryId, // Keep original ID, API will map by order
+                  recommendation: rec.recommendation,
+                }))
+              : [];
+            
+            summaryData = {
+              categoryRecommendations: mappedRecommendations,
+              nextSteps: parsed.nextSteps || [],
+              overallDetails: parsed.overallDetails,
+            };
+          } catch (error) {
+            console.error("Error parsing summary data:", error);
+          }
+        }
+      }
+
+      // Call update audit API with full data including summary
+      // The API will handle mapping category IDs correctly since categories are created in order
       await auditApi.update(editId, {
         title: (auditData.title || title).trim(),
-        categories
+        categories,
+        ...(summaryData && { summary: summaryData }),
       });
 
       toast.success("Audit updated successfully");
@@ -305,6 +551,9 @@ export default function UpdateAudit() {
       if (typeof window !== 'undefined') {
         // Clear main audit data
         sessionStorage.removeItem('auditData');
+        
+        // Clear summary data
+        sessionStorage.removeItem('summaryData');
         
         // Clear all category-related data
         for (let i = 1; i <= 7; i++) {
@@ -408,13 +657,21 @@ export default function UpdateAudit() {
           </div>
         </div>
 
-        <div className="mt-8">
-          <AuditTable
-            currentCategory={currentCategory}
-            onQuestionsChange={setTableQuestions}
-            onStatusChange={(rowIndex, labels) => setStatusMap(prev => ({ ...prev, [rowIndex]: labels }))}
+        {currentCategory === 8 ? (
+          <SummarySection
+            editId={editId}
+            isCreateMode={false}
+            sessionStorageCategories={sessionStorageCategories}
           />
-        </div>
+        ) : (
+          <div className="mt-8">
+            <AuditTable
+              currentCategory={currentCategory}
+              onQuestionsChange={setTableQuestions}
+              onStatusChange={(rowIndex, labels) => setStatusMap(prev => ({ ...prev, [rowIndex]: labels }))}
+            />
+          </div>
+        )}
       </main>
     </div>
   );

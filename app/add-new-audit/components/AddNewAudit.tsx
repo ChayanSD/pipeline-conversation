@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCreateAudit } from "@/lib/hooks";
 import toast from "react-hot-toast";
 import { CustomButton } from "@/components/common";
+import SummarySection from "@/components/SummarySection";
 
 type OptionState = { text: string; points: number };
 
@@ -18,6 +19,38 @@ export default function AddNewAudit() {
   const [categoryName, setCategoryName] = useState("");
   const [tableQuestions, setTableQuestions] = useState<{ index: number; text: string }[]>([]);
   const [statusMap, setStatusMap] = useState<Record<number, string[]>>({});
+  const [sessionStorageCategories, setSessionStorageCategories] = useState<Array<{ id: string; name: string }>>([]);
+  
+  // Load categories from sessionStorage
+  const loadCategoriesFromStorage = () => {
+    if (typeof window === 'undefined') return;
+    const auditData = sessionStorage.getItem('auditData');
+    if (auditData) {
+      try {
+        const parsed = JSON.parse(auditData);
+        if (Array.isArray(parsed.categories)) {
+          const categories = parsed.categories.map((cat: { id?: string; name?: string }, idx: number) => ({
+            id: cat.id || `temp-${idx}`,
+            name: cat.name || `Category ${idx + 1}`,
+          }));
+          setSessionStorageCategories(categories);
+        }
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    loadCategoriesFromStorage();
+    const handleStorageChange = () => {
+      loadCategoriesFromStorage();
+    };
+    window.addEventListener('categoryNameUpdated', handleStorageChange);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('categoryNameUpdated', handleStorageChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   // Hydrate title from sessionStorage on mount
   useEffect(() => {
@@ -38,6 +71,11 @@ export default function AddNewAudit() {
     if (typeof window === 'undefined') return;
     const loadCategoryName = () => {
       try {
+        // If category is 8, it's the summary
+        if (currentCategory === 8) {
+          setCategoryName('Summary');
+          return;
+        }
         // Try to get from specific category name storage
         const storedName = sessionStorage.getItem(`auditData:categoryName:${currentCategory}`);
         if (storedName) {
@@ -62,7 +100,7 @@ export default function AddNewAudit() {
           }
         }
       } catch {
-        setCategoryName(`Category ${currentCategory}`);
+        setCategoryName(currentCategory === 8 ? 'Summary' : `Category ${currentCategory}`);
       }
     };
 
@@ -135,6 +173,9 @@ export default function AddNewAudit() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      // Preserve summaryData before updating auditData
+      const existingSummaryData = sessionStorage.getItem('summaryData');
+      
       // Save category name separately for sidebar access
       const finalCategoryName = categoryName.trim() || `Category ${currentCategory}`;
       sessionStorage.setItem(`auditData:categoryName:${currentCategory}`, finalCategoryName);
@@ -146,6 +187,11 @@ export default function AddNewAudit() {
           const categoryNumber = i + 1;
           sessionStorage.setItem(`auditData:category:${categoryNumber}`, JSON.stringify(cat));
         });
+      }
+      
+      // Restore summaryData if it existed (preserve it when navigating between pages)
+      if (existingSummaryData) {
+        sessionStorage.setItem('summaryData', existingSummaryData);
       }
     } catch (e) {
       console.error(e);
@@ -211,13 +257,77 @@ export default function AddNewAudit() {
         return;
       }
 
-      // Call single audit API with full data
-      await createAuditMutation.mutateAsync({
+      // Get summary data from sessionStorage if it exists
+      let summaryData = null;
+      if (typeof window !== 'undefined') {
+        const summaryDataStr = sessionStorage.getItem('summaryData');
+        if (summaryDataStr) {
+          try {
+            const parsed = JSON.parse(summaryDataStr);
+            // Map temp category IDs to category indices (will be mapped to real IDs after creation)
+            // For now, we'll use the category index as the identifier
+            summaryData = {
+              categoryRecommendations: parsed.categoryRecommendations || [],
+              nextSteps: parsed.nextSteps || [],
+              overallDetails: parsed.overallDetails,
+            };
+          } catch (error) {
+            console.error("Error parsing summary data:", error);
+          }
+        }
+      }
+
+      // Call single audit API with full data including summary
+      const createdAudit = await createAuditMutation.mutateAsync({
         title: (auditData.title || title).trim(),
-        categories
+        categories,
+        ...(summaryData && { summary: summaryData }),
       });
 
       toast.success("Audit created successfully");
+      
+      // Store the created audit ID in sessionStorage before clearing
+      if (typeof window !== 'undefined' && createdAudit?.id) {
+        sessionStorage.setItem('createdAuditId', createdAudit.id);
+        
+        // Map temp category IDs to real category IDs and update summary if needed
+        if (summaryData && createdAudit.categories) {
+          try {
+            const categoryMap: Record<string, string> = {};
+            createdAudit.categories.forEach((cat, idx) => {
+              categoryMap[`temp-${idx}`] = cat.id;
+            });
+            
+            // Update summary with real category IDs if recommendations exist
+            if (Array.isArray(summaryData.categoryRecommendations) && summaryData.categoryRecommendations.length > 0) {
+              const mappedRecommendations = summaryData.categoryRecommendations.map((rec: { categoryId: string; recommendation: string }) => ({
+                categoryId: categoryMap[rec.categoryId] || rec.categoryId,
+                recommendation: rec.recommendation,
+              }));
+              
+              // Update the summary with mapped category IDs
+              await fetch(`/api/summary/${createdAudit.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  presentationId: createdAudit.id,
+                  categoryRecommendations: mappedRecommendations,
+                }),
+              });
+            }
+            
+            // Clear summary data from sessionStorage
+            sessionStorage.removeItem('summaryData');
+          } catch (error) {
+            console.error("Error updating summary with category IDs:", error);
+            // Don't fail the audit creation if summary update fails
+            sessionStorage.removeItem('summaryData');
+          }
+        } else if (summaryData) {
+          // Clear summary data from sessionStorage even if update fails
+          sessionStorage.removeItem('summaryData');
+        }
+      }
       
       // Clear all state
       setTitle("");
@@ -284,7 +394,7 @@ export default function AddNewAudit() {
           </div>
        
       </header>
-      <main className="px-24 pt-5 bg-white h-[92.4vh] pb-10">
+      <main className="px-24 pt-5 bg-white h-[90vh] pb-10">
         <div className="flex gap items-center justify-between mb-4">
           <div className="flex-1">
             <input
@@ -316,13 +426,21 @@ export default function AddNewAudit() {
           </div>
         </div>
 
-        <div className="mt-8">
-          <AuditTable
-            currentCategory={currentCategory}
-            onQuestionsChange={setTableQuestions}
-            onStatusChange={(rowIndex, labels) => setStatusMap(prev => ({ ...prev, [rowIndex]: labels }))}
+        {currentCategory === 8 ? (
+          <SummarySection
+            editId={null}
+            isCreateMode={true}
+            sessionStorageCategories={sessionStorageCategories}
           />
-        </div>
+        ) : (
+          <div className="mt-8">
+            <AuditTable
+              currentCategory={currentCategory}
+              onQuestionsChange={setTableQuestions}
+              onStatusChange={(rowIndex, labels) => setStatusMap(prev => ({ ...prev, [rowIndex]: labels }))}
+            />
+          </div>
+        )}
       </main>
     </div>
   );
@@ -482,7 +600,7 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
   ];
 
   return (
-    <div className="w-full mt-8">
+    <div className="w-full  mt-8">
       <table className="w-full border-collapse border border-gray-300">
         <tbody>
           {Array.from({ length: 10 }, (_, index) => {

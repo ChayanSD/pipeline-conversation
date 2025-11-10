@@ -78,6 +78,57 @@ export async function PATCH(req: NextRequest): Promise<Response> {
             },
           },
         },
+        summary: true,
+      },
+    });
+
+    // Map category recommendations to new category IDs (by index since categories are created in order)
+    let mappedCategoryRecommendations = null;
+    if (data.summary?.categoryRecommendations && Array.isArray(data.summary.categoryRecommendations)) {
+      mappedCategoryRecommendations = data.summary.categoryRecommendations.map((rec: { categoryId: string; recommendation: string }, idx: number) => ({
+        categoryId: audit.categories[idx]?.id || rec.categoryId,
+        recommendation: rec.recommendation,
+      }));
+    }
+
+    // Update summary with mapped category IDs
+    if (data.summary) {
+      await prisma.summary.upsert({
+        where: { presentationId: auditId },
+        create: {
+          presentationId: auditId,
+          categoryRecommendations: mappedCategoryRecommendations
+            ? JSON.stringify(mappedCategoryRecommendations)
+            : null,
+          nextSteps: data.summary.nextSteps
+            ? JSON.stringify(data.summary.nextSteps)
+            : null,
+          overallDetails: data.summary.overallDetails || null,
+        },
+        update: {
+          categoryRecommendations: mappedCategoryRecommendations
+            ? JSON.stringify(mappedCategoryRecommendations)
+            : undefined,
+          nextSteps: data.summary.nextSteps
+            ? JSON.stringify(data.summary.nextSteps)
+            : undefined,
+          overallDetails: data.summary.overallDetails !== undefined ? data.summary.overallDetails : undefined,
+        },
+      });
+    }
+
+    // Fetch updated audit with summary
+    const updatedAudit = await prisma.presentation.findUnique({
+      where: { id: auditId },
+      include: {
+        categories: {
+          include: {
+            questions: {
+              include: { options: true },
+            },
+          },
+        },
+        summary: true,
       },
     });
 
@@ -85,7 +136,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       {
         success: true,
         message: "Audit updated successfully",
-        data: audit,
+        data: updatedAudit,
       },
       { status: 200 }
     );

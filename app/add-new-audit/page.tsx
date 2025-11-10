@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@/contexts/UserContext";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import "react-loading-skeleton/dist/skeleton.css";
 import toast from "react-hot-toast";
@@ -12,8 +12,15 @@ export default function AddNewAuditPage() {
   const { user } = useUser();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const hasCheckedAuthRef = useRef(false);
 
   useEffect(() => {
+    // Only check auth once per session to avoid showing skeleton on every navigation
+    if (hasCheckedAuthRef.current) {
+      setIsLoading(false);
+      return;
+    }
+
     const checkAuth = async () => {
       try {
         const response = await fetch("/api/auth/check");
@@ -25,6 +32,7 @@ export default function AddNewAuditPage() {
           return;
         }
 
+        hasCheckedAuthRef.current = true;
         setIsLoading(false);
       } catch (error) {
         console.error(error);

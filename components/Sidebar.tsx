@@ -8,6 +8,7 @@ import logo from '@/public/logo.png';
 import { useState, useEffect } from 'react';
 import { FiEdit } from 'react-icons/fi';
 import summary from '@/public/summary.png';
+import { CustomButton } from './common';
 type NavigationItem = {
   name: string;
   href: string;
@@ -229,20 +230,32 @@ export default function Sidebar() {
   //   });
   // }
 
-  // When on add-new-audit, update-audit, or test page, show Category 1-7 and hide ALL AUDITS button
-  let effectiveItems = navigationItems;
+  // When on add-new-audit, update-audit, summary, or test page, show Category 1-7 and hide ALL AUDITS button
+  // On main page (pathname === '/'), only show ALL AUDITS
   const onNewAuditPage = pathname === '/add-new-audit';
   const onUpdateAuditPage = pathname === '/update-audit';
+  const onSummaryPage = pathname === '/summary';
   const onTestPage = pathname === '/test';
   const onResultPage = pathname === '/test/result';
+  const onMainPage = pathname === '/';
 
-  if (onNewAuditPage || onUpdateAuditPage || onTestPage) {
+  // Calculate effectiveItems based on current page - always start fresh
+  let effectiveItems: NavigationItem[] = [];
+  
+  // Only show categories and summary on specific audit pages, NOT on main page
+  if ((onNewAuditPage || onUpdateAuditPage || onSummaryPage || onTestPage) && !onMainPage) {
     const editId = searchParams.get('edit');
     const presentationId = searchParams.get('presentationId');
+    // Determine the base path for categories - summary page should use update-audit if editId exists, otherwise add-new-audit
     let basePath = '/add-new-audit';
     if (onUpdateAuditPage) basePath = '/update-audit';
+    if (onSummaryPage) {
+      // On summary page, categories should link to update-audit if editId exists, otherwise add-new-audit
+      basePath = editId ? '/update-audit' : '/add-new-audit';
+    }
     if (onTestPage) basePath = '/test';
     
+    // Create 7 categories + 1 summary (8 items total)
     const categoryItems = Array.from({ length: 7 }, (_, i) => {
       const categoryNumber = i + 1;
       const query = new URLSearchParams();
@@ -261,9 +274,23 @@ export default function Sidebar() {
       };
     });
 
-    // Remove ALL AUDITS from the list and prepend categories
-    const [, ...rest] = navigationItems;
-    effectiveItems = [...categoryItems, ...rest];
+    // Add Summary as 8th item (category=8 or summary parameter)
+    const summaryItem = (onNewAuditPage || onUpdateAuditPage) ? {
+      name: 'Summary',
+      href: `${basePath}?${onUpdateAuditPage && editId ? `edit=${editId}&` : ''}category=8`,
+      icon: (
+        <Image src={summary} alt="Summary" width={20} height={20} />
+      ),
+    } : null;
+
+    // Build items array: categories + summary (no ALL AUDITS on create/update/test pages)
+    // Don't show ALL AUDITS on create, update, or test/presentation pages
+    effectiveItems = summaryItem 
+      ? [...categoryItems, summaryItem]
+      : [...categoryItems];
+  } else {
+    // On main page or other pages, just show navigation items (ALL AUDITS)
+    effectiveItems = [...navigationItems];
   }
 
   return (
@@ -302,15 +329,16 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="pt-4 " style={{ position: 'relative', zIndex: 2, gap: 'clamp(1rem, 3vw, 1.5rem)', display: 'flex', flexDirection: 'column' }}>
+      <nav className="pt-4 " style={{ position: 'relative', zIndex: 2, gap: 'clamp(0.75rem, 2.5vw, 1.25rem)', display: 'flex', flexDirection: 'column' }}>
         {onResultPage ? (
           <>
             {/* Area Of Urgent Focus */}
             <div className="px-4 mt-4">
-              <h3 className="text-sm font-semibold text-white mb-3 uppercase">Area Of Urgent Focus</h3>
+              <h3 className="text-lg text-white mb-3 uppercase">Area Of Urgent Focus</h3>
               <div className="space-y-3">
                 {testResultData && (() => {
                   const urgentCategories = [...testResultData.categoryScores]
+                    .filter(cs => cs.categoryName.toLowerCase() !== 'summary')
                     .sort((a, b) => {
                       const aPercentage = a.maxScore > 0 ? (a.score / a.maxScore) * 100 : 0;
                       const bPercentage = b.maxScore > 0 ? (b.score / b.maxScore) * 100 : 0;
@@ -323,9 +351,9 @@ export default function Sidebar() {
                     return (
                       <div key={cs.categoryId} className="mb-4">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-white text-sm">{cs.categoryName}</span>
+                          <span className="text-white text-sm text-nowrap">{cs.categoryName}</span>
                         </div>
-                        <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div className="w-full h-4 bg-gray-700 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-[#F65355] transition-all duration-500"
                             style={{ width: `${Math.min(percentage, 100)}%` }}
@@ -339,23 +367,12 @@ export default function Sidebar() {
             </div>
 
             {/* Testimonials */}
-            <div className="px-4 mt-6">
-              <h3 className="text-sm font-semibold text-white mb-3 uppercase">Testimonials</h3>
-              <div className="space-y-4">
-                {[1, 2].map((i) => (
-                  <div key={i} className="bg-white/10 rounded-lg p-3">
-                    <p className="text-white text-xs leading-relaxed">
-                      Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nummy nibh euismod
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+           
           </>
         ) : (
           <>
-            {(onNewAuditPage || onUpdateAuditPage || onTestPage) && (
-              <div className="px-4 text-center font-medium text-[#fffef7]" style={{ marginBottom: 'clamp(0.25rem, 1vw, 0.5rem)' }}>
+            {(onNewAuditPage || onUpdateAuditPage || onSummaryPage || onTestPage) && !onMainPage && (
+              <div className="px-4 text-center font-medium text-[#fffef7]">
                 ALL AUDITS
               </div>
             )}
@@ -371,8 +388,17 @@ export default function Sidebar() {
             const itemCategory = new URLSearchParams(item.href.split('?')[1]).get('category');
             isActive = currentCategory === itemCategory;
           }
-          const useSecondary = ((onNewAuditPage && item.href.startsWith('/add-new-audit')) || 
-                                (onUpdateAuditPage && item.href.startsWith('/update-audit')));
+          // For summary page, only the summary link should be active, not categories
+          if (onSummaryPage) {
+            if (item.name === 'Summary') {
+              isActive = true;
+            } else {
+              // Categories on summary page should not be active
+              isActive = false;
+            }
+          }
+          // Use secondary styling for all items on create, update, and summary pages
+          const useSecondary = onNewAuditPage || onUpdateAuditPage || onSummaryPage;
           // Test page: active = white bg, inactive = primary color with opacity + white text
           const isTestPageCategory = onTestPage && isCategoryItem;
           const isEditing = itemCategoryNumber !== null && editingCategory === itemCategoryNumber;
@@ -442,7 +468,7 @@ export default function Sidebar() {
                         router.push(item.href);
                       }
                     }}
-                    className="flex-1 h-full cursor-pointer flex items-center text-left"
+                    className="flex-1 h-full cursor-pointer flex items-center text-left text-nowrap overflow-hidden text-ellipsis whitespace-nowrap"
                     style={{ color: 'inherit' }}
                   >
                     {item.name}
@@ -453,7 +479,7 @@ export default function Sidebar() {
                 style={{ 
                   backgroundImage: 'url(/bg-img.png)',
                   backgroundSize: 'contain',
-                  borderColor: (onNewAuditPage || onUpdateAuditPage) ? primaryColor : 'white',
+                  borderColor: (onNewAuditPage || onUpdateAuditPage || onSummaryPage) ? primaryColor : 'white',
                 }}
               >
                 <div 
@@ -469,7 +495,7 @@ export default function Sidebar() {
                 style={{ 
                   backgroundImage: 'url(/bg-img.png)',
                   backgroundSize: 'contain',
-                  borderColor: (onNewAuditPage || onUpdateAuditPage) ? primaryColor : 'white',
+                  borderColor: (onNewAuditPage || onUpdateAuditPage || onSummaryPage) ? primaryColor : 'white',
                 }}
               >
                 <div 
@@ -510,26 +536,36 @@ export default function Sidebar() {
       {/* User Profile Section or Action Buttons */}
       <div className="mt-auto overflow-hidden" style={{ position: 'relative', zIndex: 2, paddingBottom: 'clamp(1rem, 4vw, 2rem)' }}>
         {onResultPage ? (
-          <div className="px-4 space-y-3">
-            <button
+         <div>
+            <div className="px-4 mt-6">
+           <h3 className="text-lg text-white mb-3 uppercase text-center">Testimonials</h3>
+           <div className="space-y-4">
+             {[1, 2].map((i) => (
+               <div key={i} className="bg-white/10 rounded-lg p-3  text-center">
+                 <p className="text-white text-xs leading-relaxed ">
+                   Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nummy nibh euismod
+                 </p>
+               </div>
+             ))}
+           </div>
+         </div>
+          <div className="px-4 space-y-3 grid grid-cols-2 gap-4 mt-10">
+            <CustomButton
               onClick={handleLogout}
-              className="w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors"
-              style={{ 
-                backgroundColor: primaryColor,
-                fontSize: 'clamp(0.875rem, 3vw, 1rem)'
-              }}
+              className="w-full py-1 rounded-full font-semibold text-white transition-colors text-center"
+           
             >
               Logout
-            </button>
+            </CustomButton>
+          
             <button
               onClick={() => router.push('/')}
-              className="w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors bg-gray-600 hover:bg-gray-700"
-              style={{ 
-                fontSize: 'clamp(0.875rem, 3vw, 1rem)'
-              }}
+              className="w-full py-1 h-10 cursor-pointer rounded-full bg-transparent border border-white/50  font-semibold text-white transition-colors text-center"
+          
             >
               Exit
             </button>
+          </div>
           </div>
         ) : (
           <>
