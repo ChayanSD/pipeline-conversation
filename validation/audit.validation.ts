@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { NextStepSchema, CategoryRecommendationSchema } from "./summary.validation";
 
 export const AuditCreateSchema = z.object({
   title: z.string().min(1, "Presentation title is required"),
@@ -27,6 +28,12 @@ export const AuditCreateSchema = z.object({
       })
     )
     .min(1, "Presentation must have at least one category"),
+  
+  summary: z.object({
+    categoryRecommendations: z.array(CategoryRecommendationSchema).optional(),
+    nextSteps: z.array(NextStepSchema).optional(),
+    overallDetails: z.string().optional(),
+  }).optional(),
 });
 
 

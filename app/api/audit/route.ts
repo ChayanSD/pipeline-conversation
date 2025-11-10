@@ -42,6 +42,19 @@ export async function POST(req: NextRequest): Promise<Response> {
             },
           })),
         },
+        ...(data.summary && {
+          summary: {
+            create: {
+              categoryRecommendations: data.summary.categoryRecommendations
+                ? JSON.stringify(data.summary.categoryRecommendations)
+                : null,
+              nextSteps: data.summary.nextSteps
+                ? JSON.stringify(data.summary.nextSteps)
+                : null,
+              overallDetails: data.summary.overallDetails || null,
+            },
+          },
+        }),
       },
       include: {
         categories: {
@@ -51,6 +64,7 @@ export async function POST(req: NextRequest): Promise<Response> {
             },
           },
         },
+        summary: true,
       },
     });
     return NextResponse.json(

@@ -85,6 +85,7 @@ model Presentation {
   title      String
   categories Category[]
   tests      Test[]
+  summary    Summary?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -168,4 +169,18 @@ model Answer {
   points     Int      @default(0)
 
   @@map("answers")
+}
+
+model Summary {
+  id                    String      @id @default(cuid())
+  presentationId        String      @unique
+  presentation          Presentation @relation(fields: [presentationId], references: [id], onDelete: Cascade)
+  categoryRecommendations String?     // { categoryId: string, recommendation: string }[]
+  nextSteps             String?        // [{ type: 'text' | 'file', content: string, fileUrl?: string }]
+  overallDetails        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("summaries")
 }

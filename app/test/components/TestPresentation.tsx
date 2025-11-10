@@ -6,6 +6,7 @@ import { useAudit, useTestQuestions, useSubmitTest } from "@/lib/hooks";
 import { useUser } from "@/contexts/UserContext";
 import toast from "react-hot-toast";
 import TableSkeleton from "../../add-new-audit/components/tableSkeleton";
+import { Category, Presentation } from "@/lib/types";
 
 export default function TestPresentation() {
   const router = useRouter();
@@ -222,6 +223,9 @@ export default function TestPresentation() {
       </div>
     );
   };
+const filteredCategories = (categories: Presentation['categories']): Category[] => {
+  return categories.filter((category: Category) => category.name.toLowerCase() !== 'summary');
+};
 
   return (
     <div className="h-screen flex flex-col">
@@ -229,7 +233,7 @@ export default function TestPresentation() {
         {/* Category Progress Circles */}
         {presentation && presentation.categories.length > 0 && (
           <div className="bg-white pt-2 grid grid-cols-8 gap-6 w-full ">
-            {presentation.categories.map((category) => {
+            {filteredCategories(presentation.categories)?.map((category) => {
               const categoryScore = categoryScores[category.id] || 0;
               const percentage = getCategoryPercentage(category.id);
               return (
