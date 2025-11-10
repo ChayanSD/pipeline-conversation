@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAudit, useTestQuestions, useSubmitTest } from "@/lib/hooks";
 import { useUser } from "@/contexts/UserContext";
 import toast from "react-hot-toast";
+import Image from "next/image";
 import TableSkeleton from "../../add-new-audit/components/tableSkeleton";
 import { Category, Presentation } from "@/lib/types";
 
@@ -18,6 +19,11 @@ export default function TestPresentation() {
   const { data: auditData, isLoading: auditLoading, error: auditError } = useAudit(presentationId);
   const { data: questionsData, isLoading: questionsLoading, error: questionsError } = useTestQuestions(presentationId);
   const submitTestMutation = useSubmitTest();
+  
+  // Get summary data from audit data (summary is included in the API response)
+  const summaryData = auditData && 'summary' in auditData 
+    ? (auditData as Presentation & { summary?: { categoryRecommendations?: string | Array<{ categoryId: string; recommendation: string }>; nextSteps?: string | Array<{ type: string; content: string; fileUrl?: string }>; overallDetails?: string | null } | null })?.summary || null
+    : null;
   
   const [answers, setAnswers] = useState<Record<string, string>>({}); // questionId -> optionId
   const [categoryScores, setCategoryScores] = useState<Record<string, number>>({}); // categoryId -> total score
@@ -51,6 +57,30 @@ export default function TestPresentation() {
       window.dispatchEvent(new Event('categoryNameUpdated'));
     }
   }, [auditData]);
+
+  // Store summary data in sessionStorage when it's loaded from audit data
+  useEffect(() => {
+    if (summaryData && typeof window !== 'undefined') {
+      try {
+        const summaryToStore = {
+          categoryRecommendations: summaryData.categoryRecommendations
+            ? (typeof summaryData.categoryRecommendations === 'string'
+                ? JSON.parse(summaryData.categoryRecommendations)
+                : summaryData.categoryRecommendations)
+            : [],
+          nextSteps: summaryData.nextSteps
+            ? (typeof summaryData.nextSteps === 'string'
+                ? JSON.parse(summaryData.nextSteps)
+                : summaryData.nextSteps)
+            : [],
+          overallDetails: summaryData.overallDetails || "",
+        };
+        sessionStorage.setItem('summaryData', JSON.stringify(summaryToStore));
+      } catch (error) {
+        console.error("Error storing summary data in sessionStorage:", error);
+      }
+    }
+  }, [summaryData]);
 
   // Handle errors
   useEffect(() => {
@@ -267,15 +297,20 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                     }
                   });
 
-                  // Calculate total score
-                  const totalScore = presentation.categories.reduce((sum, cat) => {
+                  // Filter out summary category
+                  const nonSummaryCategories = presentation.categories.filter(
+                    cat => cat.name.toLowerCase() !== 'summary'
+                  );
+
+                  // Calculate total score (excluding summary)
+                  const totalScore = nonSummaryCategories.reduce((sum, cat) => {
                     return sum + (scores[cat.id] || 0);
                   }, 0);
 
-                  // Store category names and scores in sessionStorage
+                  // Store category names and scores in sessionStorage (excluding summary)
                   const testResultData = {
                     totalScore,
-                    categoryScores: presentation.categories.map(cat => {
+                    categoryScores: nonSummaryCategories.map(cat => {
                       const categoryQuestions = questions.filter(q => q.category.id === cat.id);
                       return {
                         categoryId: cat.id,
@@ -502,6 +537,42 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
               </div>
             </div>
           )}
+
+          {/* Next Steps from Summary */}
+          {summaryData?.nextSteps && (() => {
+            const nextSteps = typeof summaryData.nextSteps === 'string'
+              ? JSON.parse(summaryData.nextSteps)
+              : summaryData.nextSteps;
+            return Array.isArray(nextSteps) && nextSteps.length > 0 ? (
+              <div className="mt-8 bg-[#EFEFEF] p-6 rounded-2xl">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  WHAT ARE THE NEXT STEPS?
+                </h2>
+                <div className="space-y-4 mb-4">
+                  {nextSteps.slice(0, 3).map((step: { type: string; content: string; fileUrl?: string }, index: number) => (
+                    <div
+                      key={index}
+                      className="w-full px-6 py-4 bg-white border-2 border-gray-300 rounded-lg"
+                    >
+                      {step.type === 'file' && step.fileUrl ? (
+                        <div className="flex items-center gap-3">
+                          <Image src={step.fileUrl} alt="Step" width={64} height={64} className="object-cover rounded" />
+                          <span className="text-sm text-gray-700">Image uploaded</span>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-700">{step.content || `Step ${index + 1}`}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {summaryData.overallDetails && (
+                  <p className="text-gray-700 text-sm leading-relaxed">
+                    {summaryData.overallDetails}
+                  </p>
+                )}
+              </div>
+            ) : null;
+          })()}
         </div>
       </main>
     </div>

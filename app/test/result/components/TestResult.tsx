@@ -2,15 +2,17 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useUser } from "@/contexts/UserContext";
+import { useAudit } from "@/lib/hooks";
+import { Presentation } from "@/lib/types";
 import toast from "react-hot-toast";
+import Image from "next/image";
 import TableSkeleton from "../../../add-new-audit/components/tableSkeleton";
+import { CustomButton } from "@/components/common";
 
 export default function TestResult() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const presentationId = searchParams.get('presentationId');
-  const { user } = useUser();
   
   const [resultData, setResultData] = useState<{
     totalScore: number;
@@ -22,7 +24,14 @@ export default function TestResult() {
     }>;
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const primaryColor = user?.primaryColor || '#2B4055';
+  
+  // Fetch audit data which includes summary
+  const { data: auditData } = useAudit(presentationId);
+  
+  // Get summary data from audit data (summary is included in the API response)
+  const summaryData = auditData && 'summary' in auditData 
+    ? (auditData as Presentation & { summary?: { categoryRecommendations?: string | Array<{ categoryId: string; recommendation: string }>; nextSteps?: string | Array<{ type: string; content: string; fileUrl?: string }>; overallDetails?: string | null } | null })?.summary || null
+    : null;
 
   useEffect(() => {
     if (!presentationId) {
@@ -57,13 +66,23 @@ export default function TestResult() {
     return <TableSkeleton />;
   }
 
-  // Calculate total max score
-  const totalMaxScore = resultData.categoryScores.reduce((sum, cs) => {
+  // Filter out summary category from category scores
+  const filteredCategoryScores = resultData.categoryScores.filter(
+    cs => cs.categoryName.toLowerCase() !== 'summary'
+  );
+  
+  // Calculate total max score (excluding summary)
+  const totalMaxScore = filteredCategoryScores.reduce((sum, cs) => {
     return sum + cs.maxScore;
   }, 0);
+  
+  // Calculate total score (excluding summary)
+  const totalScore = filteredCategoryScores.reduce((sum, cs) => {
+    return sum + cs.score;
+  }, 0);
 
-  // Get category scores with percentages
-  const categoryScoresWithData = resultData.categoryScores.map(cs => {
+  // Get category scores with percentages (already filtered)
+  const categoryScoresWithData = filteredCategoryScores.map(cs => {
     const percentage = cs.maxScore > 0 ? (cs.score / cs.maxScore) * 100 : 0;
     return {
       ...cs,
@@ -71,64 +90,141 @@ export default function TestResult() {
     };
   });
 
-  // Sort by score (lowest first for "Area Of Urgent Focus")
-  const urgentFocusCategories = [...categoryScoresWithData].sort((a, b) => {
+  // Sort by score (lowest first for "Area Of Urgent Focus") - last 3 scores
+  const lastThreeCategories = [...categoryScoresWithData].sort((a, b) => {
     const aPercentage = a.maxScore > 0 ? (a.score / a.maxScore) * 100 : 0;
     const bPercentage = b.maxScore > 0 ? (b.score / b.maxScore) * 100 : 0;
     return aPercentage - bPercentage;
   }).slice(0, 3);
+  
+  // First 4 scores for visual breakdown (sorted by score, highest first)
+  const firstFourCategories = [...categoryScoresWithData].sort((a, b) => {
+    const aPercentage = a.maxScore > 0 ? (a.score / a.maxScore) * 100 : 0;
+    const bPercentage = b.maxScore > 0 ? (b.score / b.maxScore) * 100 : 0;
+    return bPercentage - aPercentage;
+  }).slice(0, 4);
+  
+  // Get recommendations for last 3 categories from summary data
+  const getRecommendationForCategory = (categoryId: string): string => {
+    if (!summaryData?.categoryRecommendations) return "";
+    const recommendations = typeof summaryData.categoryRecommendations === 'string'
+      ? JSON.parse(summaryData.categoryRecommendations)
+      : summaryData.categoryRecommendations;
+    if (Array.isArray(recommendations)) {
+      const rec = recommendations.find((r: { categoryId: string; recommendation: string }) => r.categoryId === categoryId);
+      return rec?.recommendation || "";
+    }
+    return "";
+  };
 
   return (
-    <div className="h-screen flex flex-col">
-      <main className="flex-1 overflow-y-auto bg-white">
-        <div className="max-w-7xl mx-auto px-8 py-12">
+    <div className="h-screen flex overflow-hidden" style={{ backgroundColor: '#f5f5f5' }}>
+      {/* Right Main Content - 80% width */}
+      <div className=" h-full overflow-y-auto bg-white">
+        <div className="max-w-full mx-auto px-6 py-4">
           {/* SUMMARY SCORE Section */}
-          <div className="mb-12 relative">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex-1">
-                <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                  SUMMARY SCORE YOUR SALES CONVERSION SCORE
+          <div className="mb-6">
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex gap-20">
+                <h1 className="text-3xl font-semibold text-gray-900 mb-1">
+                  SUMMARY SCORE
                 </h1>
-                <p className="text-gray-700 text-lg leading-relaxed max-w-3xl">
-                  Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim
+                <div>
+                <h2 className="text-xl font-semibold text-gray-700 mb-2">
+                  YOUR SALES CONVERSION SCORE
+                </h2>
+                <p className="text-sm text-gray-600 leading-relaxed ">
+                Your overall performance score based on the audit assessment. This score reflects your current standing across all evaluated categories and provides insight into your sales conversion effectiveness.
                 </p>
-              </div>
-              {/* Score Badge */}
-              <div className="shrink-0 ml-8">
-                <div 
-                  className="w-24 h-24 rounded-full border-4 flex items-center justify-center"
-                  style={{ borderColor: '#F65355' }}
-                >
-                  <span className="text-4xl font-bold" style={{ color: '#F65355' }}>
-                    {resultData.totalScore}
-                  </span>
                 </div>
+              </div>
+            
+              {/* Circular Gauge */}
+              <div className="shrink-0 ml-4">
+                {(() => {
+                  const totalPercentage = totalMaxScore > 0 ? Math.min((totalScore / totalMaxScore) * 100, 100) : 0;
+                  const size = 80;
+                  const center = size / 2;
+                  const radius = 32;
+                  const circumference = 2 * Math.PI * radius;
+                  const offset = circumference - (totalPercentage / 100) * circumference;
+                  
+                  // Determine color based on percentage
+                  let progressColor = '#2CD573'; // Green (default)
+                  if (totalPercentage < 33.33) {
+                    progressColor = '#F65355'; // Red
+                  } else if (totalPercentage < 66.66) {
+                    progressColor = '#F7AF41'; // Orange
+                  }
+                  
+                  return (
+                    <div className="relative" style={{ width: `${size}px`, height: `${size}px` }}>
+                      <svg 
+                        className="transform -rotate-90" 
+                        width={size} 
+                        height={size}
+                        style={{ width: `${size}px`, height: `${size}px` }}
+                      >
+                        {/* Background circle */}
+                        <circle
+                          cx={center}
+                          cy={center}
+                          r={radius}
+                          stroke="#2B4055"
+                          strokeWidth="3"
+                          fill="none"
+                        />
+                        {/* Progress circle */}
+                        <circle
+                          cx={center}
+                          cy={center}
+                          r={radius}
+                          stroke={progressColor}
+                          strokeWidth="8"
+                          fill="none"
+                          strokeDasharray={circumference}
+                          strokeDashoffset={offset}
+                          strokeLinecap="round"
+                          style={{
+                            transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+                          }}
+                        />
+                      </svg>
+                      {/* Score in center */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-[#2d3e50] font-semibold" style={{ fontSize: '28px', lineHeight: '1' }}>
+                          {totalScore}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
             {/* AUDIT TOTAL SCORE Progress Bar */}
-            <div className="mt-8 pt-4 px-4 pb-6 bg-[#D8DEE2] relative rounded-lg">
-              <h3 className="text-base font-semibold text-gray-800 mb-3 uppercase">
-                AUDIT TOTAL SCORE ({resultData.totalScore} / {totalMaxScore})
+            <div className="  relative rounded-lg">
+              <h3 className="text-sm font-semibold text-gray-800  uppercase">
+                AUDIT TOTAL SCORE ({totalScore} / {totalMaxScore})
               </h3>
-              <div className="relative w-full h-4 flex items-center rounded-full overflow-hidden">
+              <div className="relative w-full h-3 flex items-center rounded-full overflow-hidden">
                 {/* Red section - 0-33.33% */}
-                <div className="absolute inset-y-0 left-0 h-4 bg-[#F65355] z-20" style={{ width: '33.33%' }}></div>
+                <div className="absolute inset-y-0 left-0 h-3 bg-[#F65355] z-20" style={{ width: '33.33%' }}></div>
                 {/* Yellow section - 33.33-66.66% */}
-                <div className="absolute inset-y-0 h-4 bg-[#F7AF41] z-10" style={{ left: '33.33%', width: '33.33%' }}></div>
+                <div className="absolute inset-y-0 h-3 bg-[#F7AF41] z-10" style={{ left: '33.33%', width: '33.33%' }}></div>
                 {/* Green section - 66.66-100% */}
-                <div className="absolute inset-y-0 h-4 bg-[#2BD473] z-0" style={{ left: '66.66%', width: '33.34%' }}></div>
-                {/* Score indicator circle */}
+                <div className="absolute inset-y-0 h-3 bg-[#2BD473] z-0" style={{ left: '66.66%', width: '33.34%' }}></div>
+                {/* Score indicator */}
                 <div
                   className="absolute transition-all duration-500 z-30"
                   style={{ 
-                    left: `${totalMaxScore > 0 ? Math.min((resultData.totalScore / totalMaxScore) * 100, 100) : 0}%`,
+                    left: `${totalMaxScore > 0 ? Math.min((totalScore / totalMaxScore) * 100, 100) : 0}%`,
                     top: '50%',
                     transform: 'translate(-50%, -50%)'
                   }}
                 >
-                  <div className="w-12 z-30 h-10 bg-[#456987] rounded-2xl flex items-center justify-center shadow-lg">
-                    <span className="text-white font-bold text-sm">{resultData.totalScore}</span>
+                  <div className="w-10 h-8 bg-[#456987] rounded-lg flex items-center justify-center shadow-lg">
+                    <span className="text-white font-bold text-sm">{totalScore}</span>
                   </div>
                 </div>
               </div>
@@ -136,91 +232,133 @@ export default function TestResult() {
           </div>
 
           {/* VISUAL BREAKDOWN RESULTS Section */}
-          <div className="mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-6">
+          <div className="mb-4 border-t pt-4 border-gray-300">
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">
               VISUAL BREAKDOWN RESULTS
             </h2>
-            <div className="flex flex-wrap gap-4 mb-6">
-              {categoryScoresWithData.map((cs, index) => {
-                const colors = [
-                  { bg: '#209150', text: 'white' },
-                  { bg: '#F7AF41', text: 'white' },
-                  { bg: '#F65355', text: 'white' },
-                  { bg: '#2BD473', text: 'white' },
-                ];
-                const color = colors[index % colors.length];
+            <div className="bg-[#EFEFEF] p-4 rounded-lg">
+            <div className="grid grid-cols-4 text-center gap-4 mb-3 ">
+              {firstFourCategories.map((cs) => {
+                // Calculate percentage for this category
+                const percentage = cs.maxScore > 0 ? (cs.score / cs.maxScore) * 100 : 0;
+                
+                // Determine color based on percentage
+                let borderColor: string;
+                let bgColor: string;
+                if (percentage < 20) {
+                  borderColor = '#F65355'; // Red
+                  bgColor = 'rgba(246, 83, 85, 0.1)'; // Red with 10% opacity
+                } else if (percentage < 40) {
+                  borderColor = '#F7AF41'; // Orange
+                  bgColor = 'rgba(247, 175, 65, 0.1)'; // Orange with 10% opacity
+                } else {
+                  borderColor = '#209150'; // Green
+                  bgColor = 'rgba(32, 145, 80, 0.1)'; // Green with 10% opacity
+                }
+                
                 return (
                   <div
                     key={cs.categoryId}
-                    className="px-6 py-3 rounded-lg font-semibold uppercase text-sm"
-                    style={{ backgroundColor: color.bg, color: color.text }}
+                    className="px-4 py-2 rounded-lg font-semibold uppercase text-sm border-2"
+                    style={{ borderColor: borderColor, backgroundColor: bgColor, color: '#2B4055' }}
                   >
                     {cs.categoryName}
                   </div>
                 );
               })}
             </div>
-            <p className="text-gray-700 text-lg leading-relaxed">
+            <p className="text-sm text-gray-600 leading-relaxed">
               Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim veniam, quis nostrud exerci tation ullamcorper suscipit lob nonummy nibh euismod incidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad
             </p>
+            </div>
+          
           </div>
 
-          {/* IMPROVEMENT RECOMMENDATIONS Section */}
-          <div className="mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-6">
-              IMPROVEMENT RECOMMENDATIONS
-            </h2>
-            <div className="space-y-6">
-              {urgentFocusCategories.map((cs) => (
-                <div key={cs.categoryId} className="mb-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    {cs.categoryName}:
-                  </h3>
-                  <p className="text-gray-700 text-lg leading-relaxed">
-                    Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim veniam, quis nostrud exerci tation
-                  </p>
-                </div>
-              ))}
+          {/* Two Column Layout */}
+          <div className="grid grid-cols-2 gap-6 mb-2 border-y py-2 border-gray-300">
+            {/* Left Column - IMPROVEMENT RECOMMENDATIONS */}
+            <div className="border-r pr-6 border-gray-300">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                IMPROVEMENT RECOMMENDATIONS
+              </h2>
+              <div className="space-y-4">
+                {lastThreeCategories.map((cs, index) => {
+                  const recommendation = getRecommendationForCategory(cs.categoryId);
+                  return (
+                    <div key={cs.categoryId} className={`pb-1 ${index === lastThreeCategories.length - 1 ? '' : 'border-b border-gray-300'}`}>
+                      <h3 className="text-base font-bold text-gray-900 mb-2">
+                        {cs.categoryName}:
+                      </h3>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        {recommendation || "No specific recommendations available for this category."}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          {/* WHAT ARE THE NEXT STEPS? Section */}
-          <div className="mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-6">
-              WHAT ARE THE NEXT STEPS?
-            </h2>
-            <div className="space-y-4 mb-6">
-              {[1, 2, 3].map((step) => (
-                <button
-                  key={step}
-                  className="w-full px-6 py-4 border-2 border-gray-300 rounded-lg text-left text-gray-700 hover:border-gray-400 transition-colors"
-                >
-                  Enter step {step} details
-                </button>
-              ))}
+            {/* Right Column - WHAT ARE THE NEXT STEPS? */}
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                WHAT ARE THE NEXT STEPS?
+              </h2>
+              <div className="space-y-3 mb-4 grid grid-cols-3 gap-4">
+                {(() => {
+                  const nextSteps = summaryData?.nextSteps
+                    ? (typeof summaryData.nextSteps === 'string'
+                        ? JSON.parse(summaryData.nextSteps)
+                        : summaryData.nextSteps)
+                    : [];
+                  return Array.isArray(nextSteps) && nextSteps.length > 0
+                    ? nextSteps.slice(0, 3).map((step: { type: string; content: string; fileUrl?: string }, index: number) => (
+                        <div
+                          key={index}
+                          className="w-full h-full px-4 py-3 border-2 border-gray-300 rounded-lg text-left"
+                        >
+                          {step.type === 'file' && step.fileUrl ? (
+                            <div className="flex items-center gap-2">
+                              <Image src={step.fileUrl} alt="Step" width={140} height={140} className="object-cover rounded w-full h-[120px]" />
+                        
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-600">{step.content || `Enter step ${index + 1} details`}</p>
+                          )}
+                        </div>
+                      ))
+                    : [1, 2, 3].map((step) => (
+                        <div
+                          key={step}
+                          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-left"
+                        >
+                          <p className="text-sm text-gray-400">Enter step {step} details</p>
+                        </div>
+                      ));
+                })()}
+              </div>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                {summaryData?.overallDetails || "Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim veniam, quis nostrud exerci tation ullamcorper suscipit lob nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim veniam, quis nostrud exerci tation ullamcorper"}
+              </p>
             </div>
-            <p className="text-gray-700 text-lg leading-relaxed">
-              Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim veniam, quis nostrud exerci tation ullamcorper suscipit lob nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim veniam, quis nostrud exerci tation ullamcorper
-            </p>
           </div>
 
           {/* Want to Skip the Line? Section */}
-          <div className="mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
+          <div className="text-center bg-[#EFEFEF] py-2 rounded-xl">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
               Want to Skip the Line?
             </h2>
-            <p className="text-gray-700 text-lg leading-relaxed mb-6 max-w-4xl">
+            <p className="text-sm text-gray-600 leading-relaxed mb-4 max-w-3xl mx-auto">
               For action-takers ready to eliminate their conversion leaks immediately, schedule a strategy call. We&apos;ll map out how your personalized Pipeline Conversion Kit could look-so you can start closing confidently without rewriting your offer
             </p>
-            <button
-              className="px-8 py-4 bg-[#F7AF41] text-white font-semibold rounded-lg hover:bg-[#F7AF41]/90 transition-colors"
+            <CustomButton
+
+              className="px-6 py-1  text-black font-semibold rounded-full hover:bg-[#F7AF41]/90 transition-colors text-base"
             >
               Book Your Call Now
-            </button>
+            </CustomButton>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
-

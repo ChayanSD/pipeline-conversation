@@ -8,6 +8,7 @@ import logo from '@/public/logo.png';
 import { useState, useEffect } from 'react';
 import { FiEdit } from 'react-icons/fi';
 import summary from '@/public/summary.png';
+import { CustomButton } from './common';
 type NavigationItem = {
   name: string;
   href: string;
@@ -333,10 +334,11 @@ export default function Sidebar() {
           <>
             {/* Area Of Urgent Focus */}
             <div className="px-4 mt-4">
-              <h3 className="text-sm font-semibold text-white mb-3 uppercase">Area Of Urgent Focus</h3>
+              <h3 className="text-lg text-white mb-3 uppercase">Area Of Urgent Focus</h3>
               <div className="space-y-3">
                 {testResultData && (() => {
                   const urgentCategories = [...testResultData.categoryScores]
+                    .filter(cs => cs.categoryName.toLowerCase() !== 'summary')
                     .sort((a, b) => {
                       const aPercentage = a.maxScore > 0 ? (a.score / a.maxScore) * 100 : 0;
                       const bPercentage = b.maxScore > 0 ? (b.score / b.maxScore) * 100 : 0;
@@ -351,7 +353,7 @@ export default function Sidebar() {
                         <div className="flex justify-between items-center mb-1">
                           <span className="text-white text-sm text-nowrap">{cs.categoryName}</span>
                         </div>
-                        <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div className="w-full h-4 bg-gray-700 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-[#F65355] transition-all duration-500"
                             style={{ width: `${Math.min(percentage, 100)}%` }}
@@ -365,18 +367,7 @@ export default function Sidebar() {
             </div>
 
             {/* Testimonials */}
-            <div className="px-4 mt-6">
-              <h3 className="text-sm font-semibold text-white mb-3 uppercase">Testimonials</h3>
-              <div className="space-y-4">
-                {[1, 2].map((i) => (
-                  <div key={i} className="bg-white/10 rounded-lg p-3">
-                    <p className="text-white text-xs leading-relaxed">
-                      Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nummy nibh euismod
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+           
           </>
         ) : (
           <>
@@ -545,26 +536,36 @@ export default function Sidebar() {
       {/* User Profile Section or Action Buttons */}
       <div className="mt-auto overflow-hidden" style={{ position: 'relative', zIndex: 2, paddingBottom: 'clamp(1rem, 4vw, 2rem)' }}>
         {onResultPage ? (
-          <div className="px-4 space-y-3">
-            <button
+         <div>
+            <div className="px-4 mt-6">
+           <h3 className="text-lg text-white mb-3 uppercase text-center">Testimonials</h3>
+           <div className="space-y-4">
+             {[1, 2].map((i) => (
+               <div key={i} className="bg-white/10 rounded-lg p-3  text-center">
+                 <p className="text-white text-xs leading-relaxed ">
+                   Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nummy nibh euismod
+                 </p>
+               </div>
+             ))}
+           </div>
+         </div>
+          <div className="px-4 space-y-3 grid grid-cols-2 gap-4 mt-10">
+            <CustomButton
               onClick={handleLogout}
-              className="w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors"
-              style={{ 
-                backgroundColor: primaryColor,
-                fontSize: 'clamp(0.875rem, 3vw, 1rem)'
-              }}
+              className="w-full py-1 rounded-full font-semibold text-white transition-colors text-center"
+           
             >
               Logout
-            </button>
+            </CustomButton>
+          
             <button
               onClick={() => router.push('/')}
-              className="w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors bg-gray-600 hover:bg-gray-700"
-              style={{ 
-                fontSize: 'clamp(0.875rem, 3vw, 1rem)'
-              }}
+              className="w-full py-1 h-10 cursor-pointer rounded-full bg-transparent border border-white/50  font-semibold text-white transition-colors text-center"
+          
             >
               Exit
             </button>
+          </div>
           </div>
         ) : (
           <>
