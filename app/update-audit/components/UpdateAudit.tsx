@@ -399,17 +399,24 @@ export default function UpdateAudit() {
     }
 
     // If current category has anything, merge it into the categories array at its index
-    if (hasAnyQuestion || hasAnyStatus) {
+    // IMPORTANT: Only process categories 1-7, exclude summary (category 8)
+    if ((hasAnyQuestion || hasAnyStatus) && currentCategory >= 1 && currentCategory <= 7) {
       const idx = Math.max(0, currentCategory - 1);
       const existingCategories = Array.isArray(merged.categories) ? [...merged.categories] : [];
-      // Ensure array has enough length
-      while (existingCategories.length < idx + 1) existingCategories.push({ name: `Category ${existingCategories.length + 1}`, questions: [] });
-      const finalCategoryName = categoryName.trim() || `Category ${currentCategory}`;
-      existingCategories[idx] = {
-        name: finalCategoryName,
-        questions,
-      };
-      merged.categories = existingCategories;
+      // Ensure array has enough length (max 7 categories)
+      while (existingCategories.length < idx + 1 && existingCategories.length < 7) {
+        existingCategories.push({ name: `Category ${existingCategories.length + 1}`, questions: [] });
+      }
+      // Only update if index is within valid range (0-6 for categories 1-7)
+      if (idx < 7) {
+        const finalCategoryName = categoryName.trim() || `Category ${currentCategory}`;
+        existingCategories[idx] = {
+          name: finalCategoryName,
+          questions,
+        };
+        // Ensure we don't exceed 7 categories - filter out any items at index 7 or higher
+        merged.categories = existingCategories.filter((cat, index) => index < 7);
+      }
     }
 
     return merged;
@@ -470,7 +477,11 @@ export default function UpdateAudit() {
       setSubmitting(true);
 
       // Transform auditData to match API format
-      const categories = (auditData.categories || [])
+      // IMPORTANT: Only include categories 1-7, exclude summary (category 8)
+      // Filter by array index: index 0-6 = categories 1-7, index 7+ = category 8+ (summary) - exclude
+      const allCategories = auditData.categories || [];
+      const categories = allCategories
+        .filter((cat, index) => index < 7) // Only include categories at index 0-6 (categories 1-7)
         .map(cat => {
           // Filter out empty questions and ensure each question has 5 options
           const questions = cat.questions
@@ -531,12 +542,13 @@ export default function UpdateAudit() {
         }
       }
 
-      // Call update audit API with full data including summary
-      // The API will handle mapping category IDs correctly since categories are created in order
+      // Call update audit API with full data
+      // IMPORTANT: Summary is sent as a separate field, NOT as part of categories array
+      // Categories array only contains categories 1-7, summary is completely separate
       await auditApi.update(editId, {
         title: (auditData.title || title).trim(),
-        categories,
-        ...(summaryData && { summary: summaryData }),
+        categories, // Only categories 1-7, excludes summary
+        ...(summaryData && { summary: summaryData }), // Summary is separate from categories
       });
 
       toast.success("Audit updated successfully");
@@ -547,25 +559,9 @@ export default function UpdateAudit() {
       setTableQuestions([]);
       setStatusMap({});
       
-      // Clear all sessionStorage audit data after successful update
+      // Clear full sessionStorage after successful update
       if (typeof window !== 'undefined') {
-        // Clear main audit data
-        sessionStorage.removeItem('auditData');
-        
-        // Clear summary data
-        sessionStorage.removeItem('summaryData');
-        
-        // Clear all category-related data
-        for (let i = 1; i <= 7; i++) {
-          sessionStorage.removeItem(`auditData:category:${i}`);
-          sessionStorage.removeItem(`auditData:categoryName:${i}`);
-          
-          // Clear all question and status data for each category
-          for (let j = 1; j <= 10; j++) {
-            sessionStorage.removeItem(`auditData:question:${i}:${j}`);
-            sessionStorage.removeItem(`auditData:status:${i}:${j}`);
-          }
-        }
+        sessionStorage.clear();
         
         // Dispatch event to update sidebar
         window.dispatchEvent(new Event('categoryNameUpdated'));

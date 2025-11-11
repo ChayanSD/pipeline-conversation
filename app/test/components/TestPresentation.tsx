@@ -87,15 +87,29 @@ export default function TestPresentation() {
     }
   }, [presentationId, router, searchParams]);
 
-  // Store category names in sessionStorage when audit data is loaded
+  // Store category names and audit data in sessionStorage when audit data is loaded
   useEffect(() => {
     if (auditData && typeof window !== 'undefined' && auditData.categories) {
+      // Store category names
       auditData.categories.forEach((category, index) => {
         const categoryNumber = index + 1;
         if (category.name) {
           sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, category.name);
         }
       });
+      
+      // Store audit data structure for sidebar to count categories
+      const auditDataForStorage = {
+        id: auditData.id,
+        title: auditData.title,
+        categories: auditData.categories.map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          questions: cat.questions || [],
+        })),
+      };
+      sessionStorage.setItem('auditData', JSON.stringify(auditDataForStorage));
+      
       // Dispatch event to update sidebar
       window.dispatchEvent(new Event('categoryNameUpdated'));
     }

@@ -268,7 +268,7 @@ export default function TestResult() {
               })}
             </div>
             <p className="text-sm text-gray-600 leading-relaxed">
-              Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim veniam, quis nostrud exerci tation ullamcorper suscipit lob nonummy nibh euismod incidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad
+              The visual breakdown above represents your performance across the top four categories. Each category is color-coded based on your score: red indicates areas requiring urgent attention, orange shows average performance with room for improvement, and green demonstrates strong performance. Use this breakdown to prioritize your improvement efforts and focus on the categories that need the most attention.
             </p>
             </div>
           
@@ -337,7 +337,7 @@ export default function TestResult() {
                 })()}
               </div>
               <p className="text-sm text-gray-600 leading-relaxed">
-                {summaryData?.overallDetails || "Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim veniam, quis nostrud exerci tation ullamcorper suscipit lob nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat volutpat. Ut wisi enim ad minim veniam, quis nostrud exerci tation ullamcorper"}
+                {summaryData?.overallDetails || "Based on your audit results, focus on implementing the recommended improvements in the areas with the lowest scores. Start with the most critical categories that require urgent attention, then work through the next steps systematically. Regular follow-up assessments will help you track your progress and ensure continuous improvement across all evaluated areas."}
               </p>
             </div>
           </div>

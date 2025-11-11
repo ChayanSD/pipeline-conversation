@@ -280,7 +280,7 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
       const updated = { ...prev };
       let hasChanges = false;
       
-      sessionStorageCategories.forEach((cat) => {
+      sessionStorageCategories.forEach((cat: { id: string }) => {
         if (!(cat.id in updated)) {
           updated[cat.id] = "";
           hasChanges = true;
@@ -289,6 +289,64 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
       
       return hasChanges ? updated : prev;
     });
+  }, [sessionStorageCategories]);
+
+  // Listen for summary data updates (e.g., when categories are reordered)
+  useEffect(() => {
+    const handleSummaryDataUpdate = () => {
+      if (typeof window === 'undefined') return;
+      
+      const summaryDataStr = sessionStorage.getItem('summaryData');
+      if (summaryDataStr) {
+        try {
+          const parsed = JSON.parse(summaryDataStr);
+          
+          // Reload category recommendations from updated summary data
+          const recs: Record<string, string> = {};
+          if (parsed.categoryRecommendations && Array.isArray(parsed.categoryRecommendations)) {
+            (parsed.categoryRecommendations as Array<{ categoryId: string; recommendation: string }>).forEach(
+              (rec: { categoryId: string; recommendation: string }) => {
+                recs[rec.categoryId] = rec.recommendation || "";
+              }
+            );
+          }
+          
+          // Ensure all categories have entries (even if empty)
+          const categoriesToUse = sessionStorageCategories.length > 0 
+            ? sessionStorageCategories 
+            : (() => {
+                const auditDataStr = sessionStorage.getItem('auditData');
+                if (auditDataStr) {
+                  try {
+                    const auditData = JSON.parse(auditDataStr);
+                    if (auditData.categories && Array.isArray(auditData.categories)) {
+                      return auditData.categories.map((cat: { id: string; name: string }) => ({
+                        id: cat.id,
+                        name: cat.name || `Category ${cat.id}`,
+                      }));
+                    }
+                  } catch {}
+                }
+                return [];
+              })();
+          
+          categoriesToUse.forEach((cat: { id: string }) => {
+            if (!recs[cat.id]) {
+              recs[cat.id] = "";
+            }
+          });
+          
+          setCategoryRecommendations(recs);
+        } catch (error) {
+          console.error('Error reloading summary data:', error);
+        }
+      }
+    };
+
+    window.addEventListener('summaryDataUpdated', handleSummaryDataUpdate);
+    return () => {
+      window.removeEventListener('summaryDataUpdated', handleSummaryDataUpdate);
+    };
   }, [sessionStorageCategories]);
 
   const uploadToCloudinary = async (file: File): Promise<string> => {

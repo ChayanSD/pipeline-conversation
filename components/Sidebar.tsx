@@ -26,6 +26,7 @@ export default function Sidebar() {
   const [categoryNames, setCategoryNames] = useState<Record<number, string>>({});
   const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
   const [dragOverCategoryIndex, setDragOverCategoryIndex] = useState<number | null>(null);
+  const [actualCategoryCount, setActualCategoryCount] = useState<number>(7);
   
   // Load test result data for summary overview
   const [testResultData, setTestResultData] = useState<{
@@ -126,6 +127,82 @@ export default function Sidebar() {
       window.removeEventListener('categoryNameUpdated', handleCategoryNameUpdate);
     };
   }, []);
+
+  // Calculate actual category count for create mode and test mode
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const calculateCategoryCount = () => {
+      const onNewAuditPage = pathname === '/add-new-audit';
+      const onTestPage = pathname === '/test';
+      const presentationId = searchParams.get('presentationId');
+      
+      // Only calculate for create mode or test mode
+      if (!onNewAuditPage && !(onTestPage && presentationId)) {
+        setActualCategoryCount(7); // Default to 7 for update mode
+        return;
+      }
+      
+      try {
+        let count = 0;
+        
+        if (onNewAuditPage) {
+          // Create mode: Count categories with questions
+          const raw = sessionStorage.getItem('auditData');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed?.categories)) {
+              const actualCategories = parsed.categories.filter((cat: { questions?: Array<{ text?: string }> }) => {
+                return cat.questions && Array.isArray(cat.questions) && cat.questions.some((q: { text?: string }) => q.text && q.text.trim().length > 0);
+              });
+              count = Math.max(1, actualCategories.length);
+            }
+          }
+        } else if (onTestPage && presentationId) {
+          // Test mode: Count categories with names
+          for (let i = 1; i <= 7; i++) {
+            const categoryName = sessionStorage.getItem(`auditData:categoryName:${i}`);
+            if (categoryName && categoryName.trim()) {
+              count++;
+            }
+          }
+          // Fallback to auditData if no names found
+          if (count === 0) {
+            const raw = sessionStorage.getItem('auditData');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed?.categories)) {
+                count = parsed.categories.length;
+              }
+            }
+          }
+        }
+        
+        if (count > 0) {
+          setActualCategoryCount(count);
+        } else {
+          setActualCategoryCount(7); // Default if nothing found
+        }
+      } catch {
+        setActualCategoryCount(7);
+      }
+    };
+
+    calculateCategoryCount();
+    
+    // Listen for category updates
+    const handleCategoryUpdate = () => {
+      calculateCategoryCount();
+    };
+    
+    window.addEventListener('categoryNameUpdated', handleCategoryUpdate);
+    window.addEventListener('storage', handleCategoryUpdate);
+    
+    return () => {
+      window.removeEventListener('categoryNameUpdated', handleCategoryUpdate);
+      window.removeEventListener('storage', handleCategoryUpdate);
+    };
+  }, [pathname, searchParams]);
 
   // Helper to get category name
   const getCategoryName = (categoryNumber: number): string => {
@@ -413,7 +490,42 @@ export default function Sidebar() {
         data.categories = reorderedCategories;
         sessionStorage.setItem('auditData', JSON.stringify(data));
 
-        // Step 7: Reload category names for UI
+        // Step 7: Reorder summary data (categoryRecommendations) to match new category order
+        const summaryDataStr = sessionStorage.getItem('summaryData');
+        if (summaryDataStr) {
+          try {
+            const summaryData = JSON.parse(summaryDataStr);
+            
+            // Create a map of categoryId to recommendation from current summary data
+            const recommendationMap: Record<string, string> = {};
+            if (summaryData.categoryRecommendations && Array.isArray(summaryData.categoryRecommendations)) {
+              summaryData.categoryRecommendations.forEach((rec: { categoryId: string; recommendation: string }) => {
+                recommendationMap[rec.categoryId] = rec.recommendation || "";
+              });
+            }
+            
+            // Reorder categoryRecommendations to match new category order
+            const reorderedRecommendations = reorderedCategories.map((cat: { id?: string; name?: string }) => {
+              const categoryId = cat.id || '';
+              return {
+                categoryId: categoryId,
+                recommendation: recommendationMap[categoryId] || "",
+              };
+            });
+            
+            // Update summaryData with reordered recommendations
+            summaryData.categoryRecommendations = reorderedRecommendations;
+            sessionStorage.setItem('summaryData', JSON.stringify(summaryData));
+            
+            // Dispatch event to notify SummarySection that summary data was updated
+            window.dispatchEvent(new Event('summaryDataUpdated'));
+          } catch (error) {
+            console.error('Error reordering summary data:', error);
+            // Don't fail the category reorder if summary update fails
+          }
+        }
+
+        // Step 8: Reload category names for UI
         const names: Record<number, string> = {};
         for (let i = 1; i <= 7; i++) {
           const name = sessionStorage.getItem(`auditData:categoryName:${i}`);
@@ -516,8 +628,14 @@ export default function Sidebar() {
     }
     if (onTestPage) basePath = '/test';
     
-    // Create 7 categories + 1 summary (8 items total)
-    const categoryItems = Array.from({ length: 7 }, (_, i) => {
+    // Determine how many categories to show
+    // Use actualCategoryCount state for create/test mode, always 7 for update mode
+    const categoryCount = (onNewAuditPage || (onSummaryPage && !editId) || (onTestPage && presentationId))
+      ? actualCategoryCount
+      : 7; // Always show 7 for update mode
+    
+    // Create categories based on the count
+    const categoryItems = Array.from({ length: categoryCount }, (_, i) => {
       const categoryNumber = i + 1;
       const query = new URLSearchParams();
       if (onUpdateAuditPage && editId) query.set('edit', editId);
@@ -821,13 +939,16 @@ export default function Sidebar() {
             <div className="px-4 mt-6">
            <h3 className="text-lg text-white mb-3 uppercase text-center">Testimonials</h3>
            <div className="space-y-4">
-             {[1, 2].map((i) => (
-               <div key={i} className="bg-white/10 rounded-lg p-3  text-center">
-                 <p className="text-white text-xs leading-relaxed ">
-                   Lorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nummy nibh euismod
-                 </p>
-               </div>
-             ))}
+             <div className="bg-white/10 rounded-lg p-3  text-center">
+               <p className="text-white text-xs leading-relaxed ">
+                 This audit system has transformed how we track and improve our processes. The comprehensive scoring and detailed recommendations help us identify areas for urgent attention.
+               </p>
+             </div>
+             <div className="bg-white/10 rounded-lg p-3  text-center">
+               <p className="text-white text-xs leading-relaxed ">
+                 The category-based assessment structure makes it easy to focus on specific areas. The summary overview provides clear insights for continuous improvement.
+               </p>
+             </div>
            </div>
          </div>
           <div className="px-4 space-y-3 grid grid-cols-2 gap-4 mt-10">

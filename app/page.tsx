@@ -94,20 +94,8 @@ export default function Home() {
   const clearAuditSessionStorage = () => {
     if (typeof window === 'undefined') return;
     try {
-      // Clear main audit data
-      sessionStorage.removeItem('auditData');
-      
-      // Clear all category-related data
-      for (let i = 1; i <= 7; i++) {
-        sessionStorage.removeItem(`auditData:category:${i}`);
-        sessionStorage.removeItem(`auditData:categoryName:${i}`);
-        
-        // Clear all question and status data for each category
-        for (let j = 1; j <= 10; j++) {
-          sessionStorage.removeItem(`auditData:question:${i}:${j}`);
-          sessionStorage.removeItem(`auditData:status:${i}:${j}`);
-        }
-      }
+      // Clear full sessionStorage
+      sessionStorage.clear();
       
       // Dispatch event to update sidebar
       window.dispatchEvent(new Event('categoryNameUpdated'));
@@ -115,6 +103,11 @@ export default function Home() {
       console.error("Error clearing sessionStorage:", error);
     }
   };
+
+  // Clear sessionStorage when component mounts (user lands on home page)
+  useEffect(() => {
+    clearAuditSessionStorage();
+  }, []);
 
   const handleDeleteConfirm = async () => {
     if (!auditToDelete) return;
