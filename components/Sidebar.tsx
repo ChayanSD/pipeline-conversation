@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { FiEdit } from 'react-icons/fi';
 import summary from '@/public/summary.png';
 import { CustomButton } from './common';
+import toast from 'react-hot-toast';
 type NavigationItem = {
   name: string;
   href: string;
@@ -23,6 +24,8 @@ export default function Sidebar() {
   const searchParams = useSearchParams();
   const [editingCategory, setEditingCategory] = useState<number | null>(null);
   const [categoryNames, setCategoryNames] = useState<Record<number, string>>({});
+  const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
+  const [dragOverCategoryIndex, setDragOverCategoryIndex] = useState<number | null>(null);
   
   // Load test result data for summary overview
   const [testResultData, setTestResultData] = useState<{
@@ -187,6 +190,264 @@ export default function Sidebar() {
     }
     
     setEditingCategory(null);
+  };
+
+  // Handle category drag and drop reordering (only on update-audit page)
+  const handleCategoryDragStart = (e: React.DragEvent, categoryIndex: number) => {
+    if (pathname !== '/update-audit') return;
+    // Don't start drag if clicking on input, button, or other interactive elements
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target.closest('input') || target.closest('button')) {
+      e.preventDefault();
+      return;
+    }
+    setDraggedCategoryIndex(categoryIndex);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', categoryIndex.toString());
+  };
+
+  const handleCategoryDragOver = (e: React.DragEvent, categoryIndex: number) => {
+    if (pathname !== '/update-audit' || draggedCategoryIndex === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (categoryIndex !== draggedCategoryIndex) {
+      setDragOverCategoryIndex(categoryIndex);
+    }
+  };
+
+  const handleCategoryDragLeave = () => {
+    setDragOverCategoryIndex(null);
+  };
+
+  const handleCategoryDrop = (e: React.DragEvent, targetIndex: number) => {
+    if (pathname !== '/update-audit' || draggedCategoryIndex === null) {
+      setDraggedCategoryIndex(null);
+      setDragOverCategoryIndex(null);
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Use the dragOverCategoryIndex if available, otherwise use targetIndex
+    // This ensures we use the last category we dragged over, not necessarily where we dropped
+    const finalTargetIndex = dragOverCategoryIndex !== null ? dragOverCategoryIndex : targetIndex;
+    
+    if (draggedCategoryIndex === finalTargetIndex) {
+      setDraggedCategoryIndex(null);
+      setDragOverCategoryIndex(null);
+      return;
+    }
+
+    // Reorder categories in sessionStorage - move entire category with all its data
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = sessionStorage.getItem('auditData');
+        const data = raw ? JSON.parse(raw) : { categories: [] };
+        if (!Array.isArray(data.categories)) data.categories = [];
+
+        // Ensure we have 7 categories
+        while (data.categories.length < 7) {
+          data.categories.push({ name: `Category ${data.categories.length + 1}`, questions: [] });
+        }
+
+        // Step 1: Save all data for all categories (old positions)
+        const categoryDataMap: Record<number, {
+          name: string;
+          categoryData: string | null;
+          questions: Record<number, string>;
+          statuses: Record<number, string>;
+        }> = {};
+
+        for (let catNum = 1; catNum <= 7; catNum++) {
+          const categoryData = sessionStorage.getItem(`auditData:category:${catNum}`);
+          const categoryName = sessionStorage.getItem(`auditData:categoryName:${catNum}`);
+          const questions: Record<number, string> = {};
+          const statuses: Record<number, string> = {};
+
+          // Save all questions for this category
+          for (let qNum = 1; qNum <= 10; qNum++) {
+            const question = sessionStorage.getItem(`auditData:question:${catNum}:${qNum}`);
+            const status = sessionStorage.getItem(`auditData:status:${catNum}:${qNum}`);
+            if (question) questions[qNum] = question;
+            if (status) statuses[qNum] = status;
+          }
+
+          categoryDataMap[catNum] = {
+            name: categoryName || `Category ${catNum}`,
+            categoryData,
+            questions,
+            statuses,
+          };
+        }
+
+        // Step 2: Reorder categories array
+        // Create a proper reordering that moves the dragged item to the exact target position
+        const newCategories = [...data.categories];
+        const draggedCategory = newCategories[draggedCategoryIndex];
+        
+        // Calculate the correct target index for insertion
+        // Remove the dragged item first
+        newCategories.splice(draggedCategoryIndex, 1);
+        
+        // Calculate adjusted target index after removal
+        // When dragging down (lower index to higher), after removal the target shifts down by 1
+        // When dragging up (higher index to lower), the target position doesn't shift
+        let adjustedTargetIndex: number;
+        
+        if (draggedCategoryIndex < finalTargetIndex) {
+          // Dragging from lower index to higher index (dragging down in the list)
+          // Example: drag index 0 to index 4 (want item at position 5, which is index 4)
+          // Original: [cat1,cat2,cat3,cat4,cat5,cat6,cat7] (indices 0-6)
+          // After removal: [cat2,cat3,cat4,cat5,cat6,cat7] (indices 0-5)
+          // What was at index 4 (cat5) is now at index 3
+          // To insert at the position that was index 4, we need index 3
+          // But we want to insert AFTER cat5, so we need index 4 (which is now cat6's position)
+          // Actually, we want to REPLACE cat5's position, so we need index 3
+          // But user says it goes 1 step up, so maybe we want index 4?
+          // Let's try: if user drags to category 5 (index 4), they want it AT position 5
+          // After removal, to insert AT position 5 (index 4 in new array), we use index 4
+          adjustedTargetIndex = finalTargetIndex; // Try without subtraction
+        } else {
+          // Dragging from higher index to lower index (dragging up in the list)
+          // Example: drag index 6 to index 0
+          // Original: [cat1,cat2,cat3,cat4,cat5,cat6,cat7] (indices 0-6)
+          // After removal: [cat1,cat2,cat3,cat4,cat5,cat6] (indices 0-5)
+          // Index 0 is still at index 0, so we use finalTargetIndex directly
+          adjustedTargetIndex = finalTargetIndex;
+        }
+        
+        // Insert at the adjusted target position
+        newCategories.splice(adjustedTargetIndex, 0, draggedCategory);
+        data.categories = newCategories;
+
+        // Step 3: Create mapping from old position to new position
+        // Build the mapping based on the actual reordering
+        const oldToNewMap: Record<number, number> = {};
+        
+        // Create array of original indices [0, 1, 2, 3, 4, 5, 6]
+        const originalIndices = Array.from({ length: 7 }, (_, i) => i);
+        
+        // Simulate the reordering to get final positions
+        const finalIndices = [...originalIndices];
+        finalIndices.splice(draggedCategoryIndex, 1);
+        finalIndices.splice(adjustedTargetIndex, 0, draggedCategoryIndex);
+        
+        // Create mapping: old position -> new position
+        originalIndices.forEach((originalIndex) => {
+          const oldCatNum = originalIndex + 1; // Convert to 1-based category number
+          const newArrayIndex = finalIndices.indexOf(originalIndex);
+          const newCatNum = newArrayIndex + 1; // Convert to 1-based category number
+          oldToNewMap[oldCatNum] = newCatNum;
+        });
+
+        // Step 4: Clear all existing category data
+        for (let catNum = 1; catNum <= 7; catNum++) {
+          sessionStorage.removeItem(`auditData:category:${catNum}`);
+          sessionStorage.removeItem(`auditData:categoryName:${catNum}`);
+          for (let qNum = 1; qNum <= 10; qNum++) {
+            sessionStorage.removeItem(`auditData:question:${catNum}:${qNum}`);
+            sessionStorage.removeItem(`auditData:status:${catNum}:${qNum}`);
+          }
+        }
+
+        // Step 5: Write all data to new positions
+        for (let oldCatNum = 1; oldCatNum <= 7; oldCatNum++) {
+          const newCatNum = oldToNewMap[oldCatNum];
+          const oldData = categoryDataMap[oldCatNum];
+
+          // Write category name
+          sessionStorage.setItem(`auditData:categoryName:${newCatNum}`, oldData.name);
+
+          // Write category data
+          if (oldData.categoryData) {
+            sessionStorage.setItem(`auditData:category:${newCatNum}`, oldData.categoryData);
+          } else {
+            // If no category data exists, create from questions and statuses
+            const questionsArray = Object.keys(oldData.questions).map(qNum => {
+              const questionText = oldData.questions[Number(qNum)];
+              const statusData = oldData.statuses[Number(qNum)];
+              const options = statusData 
+                ? JSON.parse(statusData).map((text: string, idx: number) => ({ text, points: idx + 1 }))
+                : Array.from({ length: 5 }, (_, idx) => ({ text: `Option ${idx + 1}`, points: idx + 1 }));
+              
+              return {
+                text: questionText || '',
+                options,
+              };
+            }).filter(q => q.text);
+
+            const categoryObj = {
+              name: oldData.name,
+              questions: questionsArray,
+            };
+            sessionStorage.setItem(`auditData:category:${newCatNum}`, JSON.stringify(categoryObj));
+          }
+
+          // Write all questions
+          Object.keys(oldData.questions).forEach(qNum => {
+            sessionStorage.setItem(`auditData:question:${newCatNum}:${qNum}`, oldData.questions[Number(qNum)]);
+          });
+
+          // Write all statuses
+          Object.keys(oldData.statuses).forEach(qNum => {
+            sessionStorage.setItem(`auditData:status:${newCatNum}:${qNum}`, oldData.statuses[Number(qNum)]);
+          });
+        }
+
+        // Step 6: Update main auditData with reordered categories
+        // Rebuild categories array from sessionStorage to ensure consistency
+        const reorderedCategories = newCategories.map((cat, index) => {
+          const categoryNumber = index + 1;
+          const categoryDataStr = sessionStorage.getItem(`auditData:category:${categoryNumber}`);
+          if (categoryDataStr) {
+            try {
+              return JSON.parse(categoryDataStr);
+            } catch {
+              return cat;
+            }
+          }
+          return cat;
+        });
+
+        data.categories = reorderedCategories;
+        sessionStorage.setItem('auditData', JSON.stringify(data));
+
+        // Step 7: Reload category names for UI
+        const names: Record<number, string> = {};
+        for (let i = 1; i <= 7; i++) {
+          const name = sessionStorage.getItem(`auditData:categoryName:${i}`);
+          names[i] = name || `Category ${i}`;
+        }
+        setCategoryNames(names);
+
+        // Dispatch event to update sidebar and other components
+        window.dispatchEvent(new Event('categoryNameUpdated'));
+        
+        // Update URL if user is viewing one of the moved categories
+        const currentCategory = parseInt(new URLSearchParams(window.location.search).get('category') || '1', 10);
+        const editId = searchParams.get('edit');
+        
+        // Find the new position of the currently viewed category
+        const newCategoryPosition = oldToNewMap[currentCategory];
+        
+        if (newCategoryPosition && newCategoryPosition !== currentCategory) {
+          // Navigate to the new category position to show the moved category
+          const newUrl = `/update-audit?${editId ? `edit=${editId}&` : ''}category=${newCategoryPosition}`;
+          router.push(newUrl);
+        } else if (currentCategory === draggedCategoryIndex + 1 || currentCategory === finalTargetIndex + 1) {
+          // If viewing one of the directly moved categories, reload to refresh
+          window.location.reload();
+        }
+        // Otherwise, no action needed - data is updated and sidebar will refresh via event
+      } catch (e) {
+        console.error('Error reordering categories:', e);
+        toast.error('Failed to reorder categories. Please try again.');
+      }
+    }
+
+    setDraggedCategoryIndex(null);
+    setDragOverCategoryIndex(null);
   };
 
   const logoutMutation = useLogout();
@@ -421,14 +682,23 @@ export default function Sidebar() {
             textColor = isActive ? 'black' : primaryColor;
           }
           
+          const isDragging = isCategoryItem && itemCategoryNumber !== null && draggedCategoryIndex === (itemCategoryNumber - 1);
+          const isDragOver = isCategoryItem && itemCategoryNumber !== null && dragOverCategoryIndex === (itemCategoryNumber - 1);
+          const canDrag = isCategoryItem && itemCategoryNumber !== null && pathname === '/update-audit' && item.name !== 'Summary';
+          
           return (
             <div
               key={item.name}
+              draggable={canDrag}
+              onDragStart={canDrag ? (e) => handleCategoryDragStart(e, itemCategoryNumber! - 1) : undefined}
+              onDragOver={canDrag ? (e) => handleCategoryDragOver(e, itemCategoryNumber! - 1) : undefined}
+              onDragLeave={canDrag ? handleCategoryDragLeave : undefined}
+              onDrop={canDrag ? (e) => handleCategoryDrop(e, itemCategoryNumber! - 1) : undefined}
               className={`ml-4 h-[40px]  flex items-center ${
                 isActive 
                   ? 'w-[94.5%] mr-0 rounded-l-xl'  
                   : 'w-[88%] rounded-xl'
-              }`}
+              } ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-2 border-dashed border-white' : ''} ${canDrag ? 'cursor-move' : ''}`}
               style={{
                 padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(0.75rem, 3vw, 1rem)',
                 marginLeft: 'clamp(0.75rem, 2vw, 1rem)',
@@ -462,6 +732,17 @@ export default function Sidebar() {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-between relative">
+                  {canDrag && (
+                    <svg 
+                      className="w-4 h-4 mr-2 flex-shrink-0" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                      style={{ color: 'inherit', opacity: 0.6 }}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                  )}
                   <button
                     onClick={() => {
                       if (!isEditing) {

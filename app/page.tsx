@@ -248,7 +248,7 @@ export default function Home() {
             <tr>
               <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">AUDIT Name</th>
               <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">Creation Date</th>
-              <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">Audit Score</th>
+             {/* <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">Audit Score</th> */}
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 border-b">Action</th>
             </tr>
           </thead>
@@ -259,7 +259,7 @@ export default function Home() {
                 <tr key={audit.id} className="border-b border-[#E0E0E0] hover:bg-gray-50">
                   <td className="px-6 border-r py-4 text-gray-800">{audit.title}</td>
                   <td className="px-6 border-r py-4 text-gray-600">{formatDate(audit.createdAt)}</td>
-                  <td className="px-6 border-r py-4">
+                  {/* <td className="px-6 border-r py-4">
                     {audit.latestScore !== undefined ? (
                       <span
                         className="px-3 py-1 rounded text-sm font-medium"
@@ -270,20 +270,21 @@ export default function Home() {
                     ) : (
                       <span className="text-gray-400 text-sm">No score</span>
                     )}
-                  </td>
+                  </td> */}
                   <td className="px-6 py-4">
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                       {!isInvitedUser && (
                         <>
                           <button
                             onClick={() => router.push(`/update-audit/?edit=${audit.id}&category=1`)}
-                            className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 flex items-center gap-1"
+                            className="px-3 py-1.5 text-center cursor-pointer bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 flex items-center gap-1"
                           >
                             <Edit size={14} />
                             Edit
                           </button>
                           <CustomButton
                             variant="redLight"
+                            className="text-center"
                             size="sm"
                             fullRounded={false}
                             leftIcon={<Trash2 size={14} />}
@@ -303,7 +304,7 @@ export default function Home() {
                       {!isInvitedUser && (
                         <button
                           onClick={() => handleInviteClick(audit)}
-                          className="px-3 cursor-pointer py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-1"
+                          className="px-3 cursor-pointer py-1.5 text-center bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-1"
                         >
                           <Mail size={14} />
                           Invite

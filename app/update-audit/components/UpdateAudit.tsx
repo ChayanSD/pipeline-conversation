@@ -689,6 +689,8 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
   const [statusLabels, setStatusLabels] = useState<Record<number, string[]>>({});
   const [editableQuestions, setEditableQuestions] = useState<Set<number>>(new Set());
   const [editableStatus, setEditableStatus] = useState<Record<number, Set<number>>>({});
+  const [draggedRowIndex, setDraggedRowIndex] = useState<number | null>(null);
+  const [dragOverRowIndex, setDragOverRowIndex] = useState<number | null>(null);
 
   // Hydrate questions and status labels from sessionStorage on mount or category change
   useEffect(() => {
@@ -832,6 +834,188 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
     { label: "Very Excellent", color: "bg-[#DCF3F6]", borderColor: "border-[#01673099]", textColor: "text-blue-800" },
   ];
 
+  // Handle question row drag and drop
+  const handleRowDragStart = (e: React.DragEvent, rowIndex: number) => {
+    // Don't start drag if clicking on input, button, or other interactive elements
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'BUTTON' || target.closest('input') || target.closest('button')) {
+      e.preventDefault();
+      return;
+    }
+    setDraggedRowIndex(rowIndex);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', rowIndex.toString());
+  };
+
+  const handleRowDragOver = (e: React.DragEvent, rowIndex: number) => {
+    if (draggedRowIndex === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (rowIndex !== draggedRowIndex) {
+      setDragOverRowIndex(rowIndex);
+    }
+  };
+
+  const handleRowDragLeave = () => {
+    setDragOverRowIndex(null);
+  };
+
+  const handleRowDrop = (e: React.DragEvent, targetRowIndex: number) => {
+    if (draggedRowIndex === null || draggedRowIndex === targetRowIndex) {
+      setDraggedRowIndex(null);
+      setDragOverRowIndex(null);
+      return;
+    }
+    e.preventDefault();
+
+    // Reorder questions and status labels
+    const newQuestions: { [key: number]: string } = {};
+    const newStatusLabels: Record<number, string[]> = {};
+    const newActiveRows = new Set<number>();
+    const newEditableQuestions = new Set<number>();
+    const newEditableStatus: Record<number, Set<number>> = {};
+
+    // Get all row indices in order
+    const allRowIndices = Array.from({ length: 10 }, (_, i) => i + 1);
+    
+    // Create arrays for reordering
+    const questionArray = allRowIndices.map(idx => ({
+      index: idx,
+      text: questions[idx] || '',
+      status: statusLabels[idx] || [],
+      isActive: activeRows.has(idx),
+      isEditable: editableQuestions.has(idx),
+      editableStatus: editableStatus[idx] || new Set<number>(),
+    }));
+
+    // Reorder: move dragged item to target position
+    const draggedItem = questionArray[draggedRowIndex - 1];
+    questionArray.splice(draggedRowIndex - 1, 1);
+    questionArray.splice(targetRowIndex - 1, 0, draggedItem);
+
+    // Rebuild state objects with new order
+    questionArray.forEach((item, newIndex) => {
+      const newRowIndex = newIndex + 1;
+      if (item.text) {
+        newQuestions[newRowIndex] = item.text;
+      }
+      if (item.status.length > 0) {
+        newStatusLabels[newRowIndex] = item.status;
+      }
+      if (item.isActive) {
+        newActiveRows.add(newRowIndex);
+      }
+      if (item.isEditable) {
+        newEditableQuestions.add(newRowIndex);
+      }
+      if (item.editableStatus.size > 0) {
+        newEditableStatus[newRowIndex] = item.editableStatus;
+      }
+    });
+
+    // Update state
+    setQuestions(newQuestions);
+    setStatusLabels(newStatusLabels);
+    setActiveRows(newActiveRows);
+    setEditableQuestions(newEditableQuestions);
+    setEditableStatus(newEditableStatus);
+
+    // Update sessionStorage
+    if (typeof window !== 'undefined') {
+      try {
+        // Clear existing questions and status for this category
+        for (let i = 1; i <= 10; i++) {
+          sessionStorage.removeItem(`auditData:question:${currentCategory}:${i}`);
+          sessionStorage.removeItem(`auditData:status:${currentCategory}:${i}`);
+        }
+
+        // Save reordered questions and status
+        Object.keys(newQuestions).forEach((key) => {
+          const rowIndex = Number(key);
+          const questionText = newQuestions[rowIndex];
+          if (questionText) {
+            sessionStorage.setItem(`auditData:question:${currentCategory}:${rowIndex}`, questionText);
+          }
+        });
+
+        Object.keys(newStatusLabels).forEach((key) => {
+          const rowIndex = Number(key);
+          const status = newStatusLabels[rowIndex];
+          if (status && status.length > 0) {
+            sessionStorage.setItem(`auditData:status:${currentCategory}:${rowIndex}`, JSON.stringify(status));
+          }
+        });
+
+        // Update category data in sessionStorage
+        const categoryData = sessionStorage.getItem(`auditData:category:${currentCategory}`);
+        if (categoryData) {
+          const parsed = JSON.parse(categoryData);
+          const reorderedQuestions: Array<{ text: string; options: Array<{ text: string; points: number }> }> = [];
+          
+          for (let i = 1; i <= 10; i++) {
+            const questionText = newQuestions[i];
+            const status = newStatusLabels[i];
+            if (questionText || (status && status.length > 0)) {
+              reorderedQuestions.push({
+                text: questionText || '',
+                options: status && status.length === 5
+                  ? status.map((text, idx) => ({ text, points: idx + 1 }))
+                  : Array.from({ length: 5 }, (_, idx) => ({ text: `Option ${idx + 1}`, points: idx + 1 })),
+              });
+            }
+          }
+
+          parsed.questions = reorderedQuestions;
+          sessionStorage.setItem(`auditData:category:${currentCategory}`, JSON.stringify(parsed));
+        }
+
+        // Update main auditData
+        const auditDataRaw = sessionStorage.getItem('auditData');
+        if (auditDataRaw) {
+          const auditData = JSON.parse(auditDataRaw);
+          if (Array.isArray(auditData.categories)) {
+            const categoryIndex = currentCategory - 1;
+            if (auditData.categories[categoryIndex]) {
+              const reorderedQuestions: Array<{ text: string; options: Array<{ text: string; points: number }> }> = [];
+              
+              for (let i = 1; i <= 10; i++) {
+                const questionText = newQuestions[i];
+                const status = newStatusLabels[i];
+                if (questionText || (status && status.length > 0)) {
+                  reorderedQuestions.push({
+                    text: questionText || '',
+                    options: status && status.length === 5
+                      ? status.map((text, idx) => ({ text, points: idx + 1 }))
+                      : Array.from({ length: 5 }, (_, idx) => ({ text: `Option ${idx + 1}`, points: idx + 1 })),
+                  });
+                }
+              }
+
+              auditData.categories[categoryIndex].questions = reorderedQuestions;
+              sessionStorage.setItem('auditData', JSON.stringify(auditData));
+            }
+          }
+        }
+
+        // Notify parent component
+        onQuestionsChange?.(Object.keys(newQuestions).map(key => ({
+          index: Number(key),
+          text: newQuestions[Number(key)],
+        })));
+
+        Object.keys(newStatusLabels).forEach((key) => {
+          const rowIndex = Number(key);
+          onStatusChange?.(rowIndex, newStatusLabels[rowIndex]);
+        });
+      } catch (error) {
+        console.error('Error reordering questions:', error);
+      }
+    }
+
+    setDraggedRowIndex(null);
+    setDragOverRowIndex(null);
+  };
+
   return (
     <div className="w-full mt-8">
       <table className="w-full border-collapse border border-gray-300">
@@ -839,11 +1023,26 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
           {Array.from({ length: 10 }, (_, index) => {
             const rowIndex = index + 1;
             const isActive = activeRows.has(rowIndex);
+            const isDragging = draggedRowIndex === rowIndex;
+            const isDragOver = dragOverRowIndex === rowIndex;
             
             return (
-              <tr key={rowIndex} className="border-b border-gray-300">
+              <tr 
+                key={rowIndex} 
+                draggable={true}
+                onDragStart={(e) => handleRowDragStart(e, rowIndex)}
+                onDragOver={(e) => handleRowDragOver(e, rowIndex)}
+                onDragLeave={handleRowDragLeave}
+                onDrop={(e) => handleRowDrop(e, rowIndex)}
+                className={`border-b border-gray-300 ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-t-4 border-t-blue-500' : ''} cursor-move`}
+              >
                 <td className="border-r border-gray-300 px-4 py-3 text-center align-middle w-16">
-                  <span className="text-gray-700">{rowIndex}</span>
+                  <div className="flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                    <span className="text-gray-700">{rowIndex}</span>
+                  </div>
                 </td>
                 <td className="border-r border-gray-300 px-4 py-3 align-middle w-full">
                   <div className="relative">
