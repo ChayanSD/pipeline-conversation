@@ -629,10 +629,10 @@ export default function Sidebar() {
     if (onTestPage) basePath = '/test';
     
     // Determine how many categories to show
-    // Use actualCategoryCount state for create/test mode, always 7 for update mode
-    const categoryCount = (onNewAuditPage || (onSummaryPage && !editId) || (onTestPage && presentationId))
+    // Only use actualCategoryCount for test/presentation page, always show 7 for create/update/summary pages
+    const categoryCount = (onTestPage && presentationId)
       ? actualCategoryCount
-      : 7; // Always show 7 for update mode
+      : 7; // Always show 7 for create, update, and summary pages
     
     // Create categories based on the count
     const categoryItems = Array.from({ length: categoryCount }, (_, i) => {
