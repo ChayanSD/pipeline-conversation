@@ -17,6 +17,7 @@ export default function AddNewAudit() {
   
   const [title, setTitle] = useState("");
   const [categoryName, setCategoryName] = useState("");
+  const [categoryIcon, setCategoryIcon] = useState<string>("");
   const [tableQuestions, setTableQuestions] = useState<{ index: number; text: string }[]>([]);
   const [statusMap, setStatusMap] = useState<Record<number, string[]>>({});
   const [sessionStorageCategories, setSessionStorageCategories] = useState<Array<{ id: string; name: string }>>([]);
@@ -66,18 +67,21 @@ export default function AddNewAudit() {
     } catch {}
   }, []);
 
-  // Hydrate category name from sessionStorage on mount or category change
+  // Hydrate category name and icon from sessionStorage on mount or category change
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const loadCategoryName = () => {
+    const loadCategoryData = () => {
       try {
         // If category is 8, it's the summary
         if (currentCategory === 8) {
           setCategoryName('Summary');
+          setCategoryIcon("");
           return;
         }
-        // Try to get from specific category name storage
+        // Try to get from specific category storage
         const storedName = sessionStorage.getItem(`auditData:categoryName:${currentCategory}`);
+        const storedIcon = sessionStorage.getItem(`auditData:categoryIcon:${currentCategory}`);
+        
         if (storedName) {
           setCategoryName(storedName);
         } else {
@@ -99,24 +103,48 @@ export default function AddNewAudit() {
             setCategoryName(`Category ${currentCategory}`);
           }
         }
+        
+        // Load icon
+        if (storedIcon) {
+          setCategoryIcon(storedIcon);
+        } else {
+          // Try to get from auditData categories array
+          const raw = sessionStorage.getItem('auditData');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed?.categories)) {
+              const cat = parsed.categories[currentCategory - 1];
+              if (cat?.icon) {
+                setCategoryIcon(cat.icon);
+              } else {
+                setCategoryIcon("");
+              }
+            } else {
+              setCategoryIcon("");
+            }
+          } else {
+            setCategoryIcon("");
+          }
+        }
       } catch {
         setCategoryName(currentCategory === 8 ? 'Summary' : `Category ${currentCategory}`);
+        setCategoryIcon("");
       }
     };
 
-    loadCategoryName();
+    loadCategoryData();
 
-    // Listen for category name updates from sidebar
-    const handleCategoryNameUpdate = () => {
-      loadCategoryName();
+    // Listen for category updates from sidebar
+    const handleCategoryUpdate = () => {
+      loadCategoryData();
     };
 
-    window.addEventListener('categoryNameUpdated', handleCategoryNameUpdate);
-    return () => window.removeEventListener('categoryNameUpdated', handleCategoryNameUpdate);
+    window.addEventListener('categoryNameUpdated', handleCategoryUpdate);
+    return () => window.removeEventListener('categoryNameUpdated', handleCategoryUpdate);
   }, [currentCategory]);
 
   const buildAuditData = useMemo(() => {
-    const merged: { title?: string; categories?: Array<{ name?: string; questions: Array<Partial<{ text: string; options: OptionState[] }>> }>; } = {};
+    const merged: { title?: string; categories?: Array<{ name?: string; icon?: string; questions: Array<Partial<{ text: string; options: OptionState[] }>> }>; } = {};
 
     // Start from any previously saved auditData (to keep other categories intact)
     if (typeof window !== 'undefined') {
@@ -148,7 +176,10 @@ export default function AddNewAudit() {
       const question: Partial<{ text: string; options: OptionState[] }> = {};
       if (qText) question.text = qText;
       if (Array.isArray(labels) && labels.length === 5) {
-        question.options = labels.map((t, i) => ({ text: (t || `Option ${i + 1}`).trim(), points: i + 1 }));
+        const defaultLabels = ["Very Minimal", "Just Starting", "Good progress", "Excellent", "Very Excellent"];
+        question.options = labels.map((t, i) => {
+          return { text: (t && t.trim()) ? t.trim() : defaultLabels[i], points: i + 1 };
+        });
       }
       questions.push(question);
     }
@@ -165,8 +196,10 @@ export default function AddNewAudit() {
       // Only update if index is within valid range (0-6 for categories 1-7)
       if (idx < 7) {
         const finalCategoryName = categoryName.trim() || `Category ${currentCategory}`;
+        const finalCategoryIcon = categoryIcon.trim() || undefined;
         existingCategories[idx] = {
           name: finalCategoryName,
+          icon: finalCategoryIcon,
           questions,
         };
         // Ensure we don't exceed 7 categories - filter out any items at index 7 or higher
@@ -175,7 +208,7 @@ export default function AddNewAudit() {
     }
 
     return merged;
-  }, [title, tableQuestions, statusMap, currentCategory, categoryName]);
+  }, [title, tableQuestions, statusMap, currentCategory, categoryName, categoryIcon]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -183,9 +216,15 @@ export default function AddNewAudit() {
       // Preserve summaryData before updating auditData
       const existingSummaryData = sessionStorage.getItem('summaryData');
       
-      // Save category name separately for sidebar access
+      // Save category name and icon separately for sidebar access
       const finalCategoryName = categoryName.trim() || `Category ${currentCategory}`;
+      const finalCategoryIcon = categoryIcon.trim() || "";
       sessionStorage.setItem(`auditData:categoryName:${currentCategory}`, finalCategoryName);
+      if (finalCategoryIcon) {
+        sessionStorage.setItem(`auditData:categoryIcon:${currentCategory}`, finalCategoryIcon);
+      } else {
+        sessionStorage.removeItem(`auditData:categoryIcon:${currentCategory}`);
+      }
       
       const data = buildAuditData;
       sessionStorage.setItem('auditData', JSON.stringify(data));
@@ -203,7 +242,7 @@ export default function AddNewAudit() {
     } catch (e) {
       console.error(e);
     }
-  }, [buildAuditData, currentCategory, categoryName]);
+  }, [buildAuditData, currentCategory, categoryName, categoryIcon]);
 
   const handleCreate = async () => {
     if (!title.trim()) {
@@ -249,8 +288,8 @@ export default function AddNewAudit() {
                     text: opt.text.trim(),
                     points: opt.points
                   }))
-                : Array.from({ length: 5 }, (_, i) => ({
-                    text: `Option ${i + 1}`,
+                : ["Very Minimal", "Just Starting", "Good progress", "Excellent", "Very Excellent"].map((text, i) => ({
+                    text: text,
                     points: i + 1
                   }))
             }))
@@ -258,6 +297,7 @@ export default function AddNewAudit() {
 
           return {
             name: cat.name || 'Category',
+            icon: (cat.icon && cat.icon.trim()) ? cat.icon.trim() : undefined,
             questions
           };
         })
@@ -345,6 +385,7 @@ export default function AddNewAudit() {
       // Clear all state
       setTitle("");
       setCategoryName("");
+      setCategoryIcon("");
       setTableQuestions([]);
       setStatusMap({});
       
@@ -554,17 +595,18 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
       const row = next[rowIndex] ? [...next[rowIndex]] : statusButtons.map(s => s.label);
       row[idx] = value;
       next[rowIndex] = row;
+      
+      // Save to sessionStorage and notify parent with the updated value
+      try {
+        if (typeof window !== 'undefined') {
+          const key = `auditData:status:${currentCategory}:${rowIndex}`;
+          sessionStorage.setItem(key, JSON.stringify(row));
+          onStatusChange?.(rowIndex, row);
+        }
+      } catch {}
+      
       return next;
     });
-    try {
-      if (typeof window !== 'undefined') {
-        const key = `auditData:status:${currentCategory}:${rowIndex}`;
-        const current = statusLabels[rowIndex] ? [...statusLabels[rowIndex]] : statusButtons.map(s => s.label);
-        current[idx] = value;
-        sessionStorage.setItem(key, JSON.stringify(current));
-        onStatusChange?.(rowIndex, current);
-      }
-    } catch {}
   };
 
   const handleQuestionChange = (rowIndex: number, value: string) => {

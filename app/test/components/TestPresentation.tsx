@@ -87,14 +87,17 @@ export default function TestPresentation() {
     }
   }, [presentationId, router, searchParams]);
 
-  // Store category names and audit data in sessionStorage when audit data is loaded
+  // Store category names, icons and audit data in sessionStorage when audit data is loaded
   useEffect(() => {
     if (auditData && typeof window !== 'undefined' && auditData.categories) {
-      // Store category names
+      // Store category names and icons
       auditData.categories.forEach((category, index) => {
         const categoryNumber = index + 1;
         if (category.name) {
           sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, category.name);
+        }
+        if (category.icon) {
+          sessionStorage.setItem(`auditData:categoryIcon:${categoryNumber}`, category.icon);
         }
       });
       
@@ -105,6 +108,7 @@ export default function TestPresentation() {
         categories: auditData.categories.map(cat => ({
           id: cat.id,
           name: cat.name,
+          icon: cat.icon,
           questions: cat.questions || [],
         })),
       };

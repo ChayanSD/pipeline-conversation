@@ -10,6 +10,8 @@ import { FiEdit } from 'react-icons/fi';
 import summary from '@/public/summary.png';
 import { CustomButton } from './common';
 import toast from 'react-hot-toast';
+import IconPicker from './IconPicker';
+import * as LucideIcons from 'lucide-react';
 type NavigationItem = {
   name: string;
   href: string;
@@ -23,7 +25,9 @@ export default function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [editingCategory, setEditingCategory] = useState<number | null>(null);
+  const [editingIconCategory, setEditingIconCategory] = useState<number | null>(null);
   const [categoryNames, setCategoryNames] = useState<Record<number, string>>({});
+  const [categoryIcons, setCategoryIcons] = useState<Record<number, string>>({});
   const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
   const [dragOverCategoryIndex, setDragOverCategoryIndex] = useState<number | null>(null);
   const [actualCategoryCount, setActualCategoryCount] = useState<number>(7);
@@ -55,7 +59,7 @@ export default function Sidebar() {
 
   // Get user's primary color with opacity
   const primaryColor = user?.primaryColor || '#2B4055';
-  const primaryColorWithOpacity = hexToRgba(primaryColor, 0.8); // 80% opacity for background
+  const primaryColorWithOpacity = hexToRgba(primaryColor, 0.90); // 80% opacity for background
   const primaryColorOverlay = hexToRgba(primaryColor, 0.70); // 70% opacity for BackgroundWrapper-style overlay
 
   // Load test result data for summary overview
@@ -229,6 +233,39 @@ export default function Sidebar() {
     return `Category ${categoryNumber}`;
   };
 
+  // Helper to get category icon
+  const getCategoryIcon = (categoryNumber: number): string | undefined => {
+    if (categoryIcons[categoryNumber]) {
+      return categoryIcons[categoryNumber];
+    }
+    if (typeof window === 'undefined') return undefined;
+    try {
+      const storedIcon = sessionStorage.getItem(`auditData:categoryIcon:${categoryNumber}`);
+      if (storedIcon && storedIcon.trim()) {
+        return storedIcon;
+      }
+      const raw = sessionStorage.getItem('auditData');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.categories)) {
+          const cat = parsed.categories[categoryNumber - 1];
+          if (cat?.icon) {
+            return cat.icon;
+          }
+        }
+      }
+    } catch {}
+    return undefined;
+  };
+
+  // Helper to render icon component
+  const renderIcon = (iconName: string | undefined) => {
+    if (!iconName) return null;
+    const IconComponent = (LucideIcons as unknown as Record<string, React.ComponentType<{ className?: string; size?: number }>>)[iconName];
+    if (!IconComponent) return null;
+    return <IconComponent className="w-5 h-5" />;
+  };
+
   // Handle category name update
   const handleCategoryNameUpdate = (categoryNumber: number, newName: string) => {
     const finalName = newName.trim() || `Category ${categoryNumber}`;
@@ -267,6 +304,42 @@ export default function Sidebar() {
     }
     
     setEditingCategory(null);
+  };
+
+  // Handle category icon update
+  const handleCategoryIconUpdate = (categoryNumber: number, iconName: string) => {
+    setCategoryIcons(prev => ({ ...prev, [categoryNumber]: iconName }));
+    
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`auditData:categoryIcon:${categoryNumber}`, iconName);
+      
+      // Also update auditData categories array
+      try {
+        const raw = sessionStorage.getItem('auditData');
+        const data = raw ? JSON.parse(raw) : { categories: [] };
+        if (!Array.isArray(data.categories)) data.categories = [];
+        
+        const idx = categoryNumber - 1;
+        while (data.categories.length < categoryNumber) {
+          data.categories.push({ name: `Category ${data.categories.length + 1}`, questions: [] });
+        }
+        
+        if (data.categories[idx]) {
+          data.categories[idx].icon = iconName;
+        } else {
+          data.categories[idx] = { name: `Category ${categoryNumber}`, icon: iconName, questions: [] };
+        }
+        
+        sessionStorage.setItem('auditData', JSON.stringify(data));
+        
+        // Dispatch custom event to notify other components
+        window.dispatchEvent(new Event('categoryNameUpdated'));
+      } catch (e) {
+        console.error('Error updating category icon:', e);
+      }
+    }
+    
+    setEditingIconCategory(null);
   };
 
   // Handle category drag and drop reordering (only on update-audit page)
@@ -582,26 +655,9 @@ export default function Sidebar() {
     {
       name: 'ALL AUDITS',
       href: '/',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6H8V5z" />
-        </svg>
-      ),
+      icon: ''
     },
   ];
-
-  // if (user.role === 'ADMIN') {
-  //   navigationItems.push({
-  //     name: 'Admin Dashboard',
-  //     href: '/dashboard',
-  //     icon: (
-  //       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-  //         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-  //       </svg>
-  //     ),
-  //   });
-  // }
 
   // When on add-new-audit, update-audit, summary, or test page, show Category 1-7 and hide ALL AUDITS button
   // On main page (pathname === '/'), only show ALL AUDITS
@@ -654,13 +710,18 @@ export default function Sidebar() {
     });
 
     // Add Summary as 8th item (category=8 or summary parameter)
-    const summaryItem = (onNewAuditPage || onUpdateAuditPage) ? {
-      name: 'Summary',
-      href: `${basePath}?${onUpdateAuditPage && editId ? `edit=${editId}&` : ''}category=8`,
-      icon: (
-        <Image src={summary} alt="Summary" width={20} height={20} />
-      ),
-    } : null;
+    const summaryItem = (onNewAuditPage || onUpdateAuditPage) ? (() => {
+      const summaryQuery = new URLSearchParams();
+      if (onUpdateAuditPage && editId) summaryQuery.set('edit', editId);
+      summaryQuery.set('category', '8');
+      return {
+        name: 'Summary',
+        href: `${basePath}?${summaryQuery.toString()}`,
+        icon: (
+          <Image src={summary} alt="Summary" width={20} height={20} />
+        ),
+      };
+    })() : null;
 
     // Build items array: categories + summary (no ALL AUDITS on create/update/test pages)
     // Don't show ALL AUDITS on create, update, or test/presentation pages
@@ -804,19 +865,27 @@ export default function Sidebar() {
           const isDragOver = isCategoryItem && itemCategoryNumber !== null && dragOverCategoryIndex === (itemCategoryNumber - 1);
           const canDrag = isCategoryItem && itemCategoryNumber !== null && pathname === '/update-audit' && item.name !== 'Summary';
           
+          const isSummaryItem = item.name === 'Summary';
+          
           return (
             <div
               key={item.name}
-              draggable={canDrag}
-              onDragStart={canDrag ? (e) => handleCategoryDragStart(e, itemCategoryNumber! - 1) : undefined}
-              onDragOver={canDrag ? (e) => handleCategoryDragOver(e, itemCategoryNumber! - 1) : undefined}
-              onDragLeave={canDrag ? handleCategoryDragLeave : undefined}
-              onDrop={canDrag ? (e) => handleCategoryDrop(e, itemCategoryNumber! - 1) : undefined}
+              draggable={canDrag && !isSummaryItem}
+              onDragStart={canDrag && !isSummaryItem ? (e) => handleCategoryDragStart(e, itemCategoryNumber! - 1) : undefined}
+              onDragOver={canDrag && !isSummaryItem ? (e) => handleCategoryDragOver(e, itemCategoryNumber! - 1) : undefined}
+              onDragLeave={canDrag && !isSummaryItem ? handleCategoryDragLeave : undefined}
+              onDrop={canDrag && !isSummaryItem ? (e) => handleCategoryDrop(e, itemCategoryNumber! - 1) : undefined}
+              onClick={(e) => {
+                // Allow clicking through to button for Summary items
+                if (isSummaryItem) {
+                  e.stopPropagation();
+                }
+              }}
               className={`ml-4 h-[40px]  flex items-center ${
                 isActive 
                   ? 'w-[94.5%] mr-0 rounded-l-xl'  
                   : 'w-[88%] rounded-xl'
-              } ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-2 border-dashed border-white' : ''} ${canDrag ? 'cursor-move' : ''}`}
+              } ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-2 border-dashed border-white' : ''} ${canDrag && !isSummaryItem ? 'cursor-move' : ''}`}
               style={{
                 padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(0.75rem, 3vw, 1rem)',
                 marginLeft: 'clamp(0.75rem, 2vw, 1rem)',
@@ -845,7 +914,7 @@ export default function Sidebar() {
                     }
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full bg-transparent border border-white/50 rounded px-20 py-1 outline-none"
+                  className="w-full bg-transparent border border-white/50 rounded px-4 py-1 outline-none"
                   style={{ color: 'inherit' }}
                 />
               ) : (
@@ -861,17 +930,94 @@ export default function Sidebar() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                     </svg>
                   )}
-                  <button
-                    onClick={() => {
-                      if (!isEditing) {
-                        router.push(item.href);
-                      }
-                    }}
-                    className="flex-1 h-full cursor-pointer flex items-center text-left text-nowrap overflow-hidden text-ellipsis whitespace-nowrap"
-                    style={{ color: 'inherit' }}
-                  >
-                    {item.name}
-                  </button>
+                  <div className="flex-1 h-full flex items-center gap-2">
+                    {/* Category icon - clickable to open icon picker on create/update pages */}
+                    {isCategoryItem && itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage) ? (
+                      editingIconCategory === itemCategoryNumber ? (
+                        // Show IconPicker dropdown directly (no button)
+                        <div 
+                          className="relative"
+                          style={{ 
+                            zIndex: 10000,
+                            overflow: 'visible'
+                          }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                        >
+                          <IconPicker
+                            value={getCategoryIcon(itemCategoryNumber)}
+                            onChange={(iconName) => {
+                              handleCategoryIconUpdate(itemCategoryNumber, iconName);
+                              setEditingIconCategory(null);
+                            }}
+                            placeholder="Select icon"
+                            showButton={false}
+                            isOpen={true}
+                            onClose={() => setEditingIconCategory(null)}
+                          />
+                        </div>
+                      ) : (
+                        // Show clickable icon
+                        <div
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEditingIconCategory(itemCategoryNumber);
+                          }}
+                          className="cursor-pointer flex items-center justify-center hover:opacity-80 transition-opacity"
+                          style={{ 
+                            color: 'inherit',
+                            minWidth: '20px',
+                            minHeight: '20px'
+                          }}
+                          title="Click to change icon"
+                        >
+                          {getCategoryIcon(itemCategoryNumber) ? (
+                            renderIcon(getCategoryIcon(itemCategoryNumber))
+                          ) : (
+                            item.icon
+                          )}
+                        </div>
+                      )
+                    ) : (
+                      // Non-editable icon (on other pages)
+                      <div className="flex items-center justify-center">
+                        {isCategoryItem && itemCategoryNumber !== null && getCategoryIcon(itemCategoryNumber) ? (
+                          renderIcon(getCategoryIcon(itemCategoryNumber))
+                        ) : (
+                          item.icon
+                        )}
+                      </div>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // Allow navigation if:
+                        // 1. Not editing category name
+                        // 2. Either it's a category item (itemCategoryNumber !== null) and not editing icon, OR it's the Summary item
+                        const isSummaryItem = item.name === 'Summary';
+                        const canNavigate = !isEditing && (
+                          isSummaryItem || 
+                          (itemCategoryNumber !== null && editingIconCategory !== itemCategoryNumber)
+                        );
+                        if (canNavigate) {
+                          console.log('Navigating to:', item.href);
+                          router.push(item.href);
+                        } else {
+                          console.log('Navigation blocked:', { isEditing, isSummaryItem, itemCategoryNumber, editingIconCategory });
+                        }
+                      }}
+                      className="flex-1 h-full cursor-pointer flex items-center gap-2 text-left text-nowrap overflow-hidden text-ellipsis whitespace-nowrap"
+                      style={{ color: 'inherit' }}
+                    >
+                      <span>{item.name}</span>
+                    </button>
+                  </div>
             {isActive && <div>
             <div 
                 className='absolute -right-5 -top-[26.6px] border-r-4 h-4 w-4 rounded rounded-r-full rotate-45 font-bold overflow-hidden'

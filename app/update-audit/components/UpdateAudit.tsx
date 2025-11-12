@@ -21,6 +21,7 @@ export default function UpdateAudit() {
   
   const [title, setTitle] = useState("");
   const [categoryName, setCategoryName] = useState("");
+  const [categoryIcon, setCategoryIcon] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [tableQuestions, setTableQuestions] = useState<{ index: number; text: string }[]>([]);
   const [statusMap, setStatusMap] = useState<Record<number, string[]>>({});
@@ -114,6 +115,7 @@ export default function UpdateAudit() {
           categories: audit.categories.map(cat => ({
             id: cat.id,
             name: cat.name,
+            icon: cat.icon || undefined,
             questions: cat.questions.map(q => ({
               text: q.text,
               options: q.options.map(opt => ({
@@ -143,12 +145,19 @@ export default function UpdateAudit() {
           
           sessionStorage.setItem('auditData', JSON.stringify(auditData));
           
-          // Store category names separately
+          // Store category names and icons separately
           audit.categories.forEach((cat, index) => {
             const categoryNumber = index + 1;
             sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, cat.name);
+            // Store icon if available
+            if (cat.icon) {
+              sessionStorage.setItem(`auditData:categoryIcon:${categoryNumber}`, cat.icon);
+            } else {
+              sessionStorage.removeItem(`auditData:categoryIcon:${categoryNumber}`);
+            }
             sessionStorage.setItem(`auditData:category:${categoryNumber}`, JSON.stringify({
               name: cat.name,
+              icon: cat.icon || undefined,
               questions: cat.questions.map(q => ({
                 text: q.text,
                 options: q.options.map(opt => ({
@@ -311,18 +320,21 @@ export default function UpdateAudit() {
     fetchAuditData();
   }, [editId, router]);
 
-  // Hydrate category name from sessionStorage on mount or category change
+  // Hydrate category name and icon from sessionStorage on mount or category change
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const loadCategoryName = () => {
+    const loadCategoryData = () => {
       try {
         // If category is 8, it's the summary
         if (currentCategory === 8) {
           setCategoryName('Summary');
+          setCategoryIcon("");
           return;
         }
-        // Try to get from specific category name storage
+        // Try to get from specific category storage
         const storedName = sessionStorage.getItem(`auditData:categoryName:${currentCategory}`);
+        const storedIcon = sessionStorage.getItem(`auditData:categoryIcon:${currentCategory}`);
+        
         if (storedName) {
           setCategoryName(storedName);
         } else {
@@ -344,24 +356,48 @@ export default function UpdateAudit() {
             setCategoryName(`Category ${currentCategory}`);
           }
         }
+        
+        // Load icon
+        if (storedIcon) {
+          setCategoryIcon(storedIcon);
+        } else {
+          // Try to get from auditData categories array
+          const raw = sessionStorage.getItem('auditData');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed?.categories)) {
+              const cat = parsed.categories[currentCategory - 1];
+              if (cat?.icon) {
+                setCategoryIcon(cat.icon);
+              } else {
+                setCategoryIcon("");
+              }
+            } else {
+              setCategoryIcon("");
+            }
+          } else {
+            setCategoryIcon("");
+          }
+        }
       } catch {
         setCategoryName(currentCategory === 8 ? 'Summary' : `Category ${currentCategory}`);
+        setCategoryIcon("");
       }
     };
 
-    loadCategoryName();
+    loadCategoryData();
 
-    // Listen for category name updates from sidebar
-    const handleCategoryNameUpdate = () => {
-      loadCategoryName();
+    // Listen for category updates from sidebar
+    const handleCategoryUpdate = () => {
+      loadCategoryData();
     };
 
-    window.addEventListener('categoryNameUpdated', handleCategoryNameUpdate);
-    return () => window.removeEventListener('categoryNameUpdated', handleCategoryNameUpdate);
+    window.addEventListener('categoryNameUpdated', handleCategoryUpdate);
+    return () => window.removeEventListener('categoryNameUpdated', handleCategoryUpdate);
   }, [currentCategory]);
 
   const buildAuditData = useMemo(() => {
-    const merged: { title?: string; categories?: Array<{ name?: string; questions: Array<Partial<{ text: string; options: OptionState[] }>> }>; } = {};
+    const merged: { title?: string; categories?: Array<{ name?: string; icon?: string; questions: Array<Partial<{ text: string; options: OptionState[] }>> }>; } = {};
 
     // Start from any previously saved auditData (to keep other categories intact)
     if (typeof window !== 'undefined') {
@@ -393,7 +429,10 @@ export default function UpdateAudit() {
       const question: Partial<{ text: string; options: OptionState[] }> = {};
       if (qText) question.text = qText;
       if (Array.isArray(labels) && labels.length === 5) {
-        question.options = labels.map((t, i) => ({ text: (t || `Option ${i + 1}`).trim(), points: i + 1 }));
+        const defaultLabels = ["Very Minimal", "Just Starting", "Good progress", "Excellent", "Very Excellent"];
+        question.options = labels.map((t, i) => {
+          return { text: (t && t.trim()) ? t.trim() : defaultLabels[i], points: i + 1 };
+        });
       }
       questions.push(question);
     }
@@ -410,8 +449,10 @@ export default function UpdateAudit() {
       // Only update if index is within valid range (0-6 for categories 1-7)
       if (idx < 7) {
         const finalCategoryName = categoryName.trim() || `Category ${currentCategory}`;
+        const finalCategoryIcon = categoryIcon.trim() || undefined;
         existingCategories[idx] = {
           name: finalCategoryName,
+          icon: finalCategoryIcon,
           questions,
         };
         // Ensure we don't exceed 7 categories - filter out any items at index 7 or higher
@@ -420,14 +461,20 @@ export default function UpdateAudit() {
     }
 
     return merged;
-  }, [title, tableQuestions, statusMap, currentCategory, categoryName]);
+  }, [title, tableQuestions, statusMap, currentCategory, categoryName, categoryIcon]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      // Save category name separately for sidebar access
+      // Save category name and icon separately for sidebar access
       const finalCategoryName = categoryName.trim() || `Category ${currentCategory}`;
+      const finalCategoryIcon = categoryIcon.trim() || "";
       sessionStorage.setItem(`auditData:categoryName:${currentCategory}`, finalCategoryName);
+      if (finalCategoryIcon) {
+        sessionStorage.setItem(`auditData:categoryIcon:${currentCategory}`, finalCategoryIcon);
+      } else {
+        sessionStorage.removeItem(`auditData:categoryIcon:${currentCategory}`);
+      }
       
       const data = buildAuditData;
       sessionStorage.setItem('auditData', JSON.stringify(data));
@@ -440,7 +487,7 @@ export default function UpdateAudit() {
     } catch (e) {
       console.error(e);
     }
-  }, [buildAuditData, currentCategory, categoryName]);
+  }, [buildAuditData, currentCategory, categoryName, categoryIcon]);
 
   const handleUpdate = async () => {
     if (!editId) {
@@ -493,8 +540,8 @@ export default function UpdateAudit() {
                     text: opt.text.trim(),
                     points: opt.points
                   }))
-                : Array.from({ length: 5 }, (_, i) => ({
-                    text: `Option ${i + 1}`,
+                : ["Very Minimal", "Just Starting", "Good progress", "Excellent", "Very Excellent"].map((text, i) => ({
+                    text: text,
                     points: i + 1
                   }))
             }))
@@ -502,6 +549,7 @@ export default function UpdateAudit() {
 
           return {
             name: cat.name || 'Category',
+            icon: (cat.icon && cat.icon.trim()) ? cat.icon.trim() : undefined,
             questions
           };
         })
@@ -556,6 +604,7 @@ export default function UpdateAudit() {
       // Clear all state
       setTitle("");
       setCategoryName("");
+      setCategoryIcon("");
       setTableQuestions([]);
       setStatusMap({});
       
@@ -785,17 +834,18 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
       const row = next[rowIndex] ? [...next[rowIndex]] : statusButtons.map(s => s.label);
       row[idx] = value;
       next[rowIndex] = row;
+      
+      // Save to sessionStorage and notify parent with the updated value
+      try {
+        if (typeof window !== 'undefined') {
+          const key = `auditData:status:${currentCategory}:${rowIndex}`;
+          sessionStorage.setItem(key, JSON.stringify(row));
+          onStatusChange?.(rowIndex, row);
+        }
+      } catch {}
+      
       return next;
     });
-    try {
-      if (typeof window !== 'undefined') {
-        const key = `auditData:status:${currentCategory}:${rowIndex}`;
-        const current = statusLabels[rowIndex] ? [...statusLabels[rowIndex]] : statusButtons.map(s => s.label);
-        current[idx] = value;
-        sessionStorage.setItem(key, JSON.stringify(current));
-        onStatusChange?.(rowIndex, current);
-      }
-    } catch {}
   };
 
   const handleQuestionChange = (rowIndex: number, value: string) => {
@@ -955,8 +1005,11 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
               reorderedQuestions.push({
                 text: questionText || '',
                 options: status && status.length === 5
-                  ? status.map((text, idx) => ({ text, points: idx + 1 }))
-                  : Array.from({ length: 5 }, (_, idx) => ({ text: `Option ${idx + 1}`, points: idx + 1 })),
+                  ? status.map((text, idx) => {
+                      const defaultLabels = ["Very Minimal", "Just Starting", "Good progress", "Excellent", "Very Excellent"];
+                      return { text: (text && text.trim()) ? text.trim() : defaultLabels[idx], points: idx + 1 };
+                    })
+                  : ["Very Minimal", "Just Starting", "Good progress", "Excellent", "Very Excellent"].map((text, idx) => ({ text: text, points: idx + 1 })),
               });
             }
           }
@@ -982,7 +1035,7 @@ function AuditTable({ currentCategory, onQuestionsChange, onStatusChange }: Audi
                     text: questionText || '',
                     options: status && status.length === 5
                       ? status.map((text, idx) => ({ text, points: idx + 1 }))
-                      : Array.from({ length: 5 }, (_, idx) => ({ text: `Option ${idx + 1}`, points: idx + 1 })),
+                      : ["Very Minimal", "Just Starting", "Good progress", "Excellent", "Very Excellent"].map((text, idx) => ({ text: text, points: idx + 1 })),
                   });
                 }
               }

@@ -26,6 +26,7 @@ export interface Presentation {
 export interface Category {
   id: string;
   name: string;
+  icon?: string;
   presentationId: string;
   presentation: Presentation;
   questions: Question[];

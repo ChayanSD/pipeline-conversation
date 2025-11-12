@@ -29,6 +29,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         categories: {
           create: data.categories.map((cat) => ({
             name: cat.name,
+            icon: (cat.icon && cat.icon.trim()) ? cat.icon.trim() : null,
             questions: {
               create: cat.questions.map((q) => ({
                 text: q.text,
