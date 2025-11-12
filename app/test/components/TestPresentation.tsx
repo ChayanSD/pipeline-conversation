@@ -25,8 +25,28 @@ export default function TestPresentation() {
     ? (auditData as Presentation & { summary?: { categoryRecommendations?: string | Array<{ categoryId: string; recommendation: string }>; nextSteps?: string | Array<{ type: string; content: string; fileUrl?: string }>; overallDetails?: string | null } | null })?.summary || null
     : null;
   
-  const [answers, setAnswers] = useState<Record<string, string>>({}); // questionId -> optionId
-  const [categoryScores, setCategoryScores] = useState<Record<string, number>>({}); // categoryId -> total score
+  // Load answers from localStorage on mount
+  const [answers, setAnswers] = useState<Record<string, string>>(() => {
+    if (typeof window === 'undefined' || !presentationId) return {};
+    try {
+      const savedAnswers = localStorage.getItem(`testAnswers:${presentationId}`);
+      return savedAnswers ? JSON.parse(savedAnswers) : {};
+    } catch (error) {
+      console.error("Error loading answers from localStorage:", error);
+      return {};
+    }
+  }); // questionId -> optionId
+  
+  const [categoryScores, setCategoryScores] = useState<Record<string, number>>(() => {
+    if (typeof window === 'undefined' || !presentationId) return {};
+    try {
+      const savedScores = localStorage.getItem(`testCategoryScores:${presentationId}`);
+      return savedScores ? JSON.parse(savedScores) : {};
+    } catch (error) {
+      console.error("Error loading category scores from localStorage:", error);
+      return {};
+    }
+  }); // categoryId -> total score
   const primaryColor = user?.primaryColor || '#2B4055';
 
   // Handle routing and category parameter
@@ -42,17 +62,58 @@ export default function TestPresentation() {
       router.replace(`/test?presentationId=${presentationId}&category=1`);
       return;
     }
+
+    // Reload answers from localStorage when presentationId changes
+    if (typeof window !== 'undefined' && presentationId) {
+      try {
+        const savedAnswers = localStorage.getItem(`testAnswers:${presentationId}`);
+        if (savedAnswers) {
+          setAnswers(JSON.parse(savedAnswers));
+        } else {
+          setAnswers({});
+        }
+        
+        const savedScores = localStorage.getItem(`testCategoryScores:${presentationId}`);
+        if (savedScores) {
+          setCategoryScores(JSON.parse(savedScores));
+        } else {
+          setCategoryScores({});
+        }
+      } catch (error) {
+        console.error("Error loading test data from localStorage:", error);
+        setAnswers({});
+        setCategoryScores({});
+      }
+    }
   }, [presentationId, router, searchParams]);
 
-  // Store category names in sessionStorage when audit data is loaded
+  // Store category names, icons and audit data in sessionStorage when audit data is loaded
   useEffect(() => {
     if (auditData && typeof window !== 'undefined' && auditData.categories) {
+      // Store category names and icons
       auditData.categories.forEach((category, index) => {
         const categoryNumber = index + 1;
         if (category.name) {
           sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, category.name);
         }
+        if (category.icon) {
+          sessionStorage.setItem(`auditData:categoryIcon:${categoryNumber}`, category.icon);
+        }
       });
+      
+      // Store audit data structure for sidebar to count categories
+      const auditDataForStorage = {
+        id: auditData.id,
+        title: auditData.title,
+        categories: auditData.categories.map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          icon: cat.icon,
+          questions: cat.questions || [],
+        })),
+      };
+      sessionStorage.setItem('auditData', JSON.stringify(auditDataForStorage));
+      
       // Dispatch event to update sidebar
       window.dispatchEvent(new Event('categoryNameUpdated'));
     }
@@ -81,6 +142,28 @@ export default function TestPresentation() {
       }
     }
   }, [summaryData]);
+
+  // Save answers to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && presentationId && Object.keys(answers).length > 0) {
+      try {
+        localStorage.setItem(`testAnswers:${presentationId}`, JSON.stringify(answers));
+      } catch (error) {
+        console.error("Error saving answers to localStorage:", error);
+      }
+    }
+  }, [answers, presentationId]);
+
+  // Save category scores to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && presentationId && Object.keys(categoryScores).length > 0) {
+      try {
+        localStorage.setItem(`testCategoryScores:${presentationId}`, JSON.stringify(categoryScores));
+      } catch (error) {
+        console.error("Error saving category scores to localStorage:", error);
+      }
+    }
+  }, [categoryScores, presentationId]);
 
   // Handle errors
   useEffect(() => {
@@ -153,6 +236,16 @@ export default function TestPresentation() {
         presentationId,
         answers: answerArray
       });
+
+      // Clear localStorage after successful submission
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(`testAnswers:${presentationId}`);
+          localStorage.removeItem(`testCategoryScores:${presentationId}`);
+        } catch (error) {
+          console.error("Error clearing localStorage:", error);
+        }
+      }
 
       toast.success("Audit submitted successfully!");
       router.push(`/test/result?testId=${result.testId}`);

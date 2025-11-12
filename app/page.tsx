@@ -20,7 +20,7 @@ interface AuditWithScore extends Presentation {
 }
 
 export default function Home() {
-  const { user } = useUser();
+  const { user, isInvitedUser, setIsInvitedUser } = useUser();
   const router = useRouter();
   const { data: authData, isLoading: authLoading } = useAuthCheck();
   const { data: auditsData, isLoading: auditsLoading, error: auditsError } = useAudits();
@@ -30,7 +30,6 @@ export default function Home() {
   const [auditToDelete, setAuditToDelete] = useState<string | null>(null);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [auditToInvite, setAuditToInvite] = useState<{ id: string; title: string } | null>(null);
-  const [isInvitedUser, setIsInvitedUser] = useState(false);
 
   useEffect(() => {
     if (!authLoading && authData) {
@@ -48,17 +47,22 @@ export default function Home() {
     }
   }, [auditsError]);
 
-  // Process audits to include latest score and check if user is invited
-  const audits = useMemo<AuditWithScore[]>(() => {
-    if (!auditsData) return [];
+  // Extract isInvitedUser flag from audits response
+  useEffect(() => {
+    if (!auditsData) return;
     
-    // Check if response includes isInvitedUser flag
     const responseData = auditsData as { data?: Presentation[]; isInvitedUser?: boolean } | Presentation[];
     
     if (responseData && typeof responseData === 'object' && !Array.isArray(responseData) && 'isInvitedUser' in responseData) {
       setIsInvitedUser(responseData.isInvitedUser || false);
     }
+  }, [auditsData, setIsInvitedUser]);
+
+  // Process audits to include latest score
+  const audits = useMemo<AuditWithScore[]>(() => {
+    if (!auditsData) return [];
     
+    const responseData = auditsData as { data?: Presentation[]; isInvitedUser?: boolean } | Presentation[];
     const auditsList = Array.isArray(responseData) 
       ? responseData 
       : responseData?.data || [];
@@ -94,20 +98,8 @@ export default function Home() {
   const clearAuditSessionStorage = () => {
     if (typeof window === 'undefined') return;
     try {
-      // Clear main audit data
-      sessionStorage.removeItem('auditData');
-      
-      // Clear all category-related data
-      for (let i = 1; i <= 7; i++) {
-        sessionStorage.removeItem(`auditData:category:${i}`);
-        sessionStorage.removeItem(`auditData:categoryName:${i}`);
-        
-        // Clear all question and status data for each category
-        for (let j = 1; j <= 10; j++) {
-          sessionStorage.removeItem(`auditData:question:${i}:${j}`);
-          sessionStorage.removeItem(`auditData:status:${i}:${j}`);
-        }
-      }
+      // Clear full sessionStorage
+      sessionStorage.clear();
       
       // Dispatch event to update sidebar
       window.dispatchEvent(new Event('categoryNameUpdated'));
@@ -115,6 +107,11 @@ export default function Home() {
       console.error("Error clearing sessionStorage:", error);
     }
   };
+
+  // Clear sessionStorage when component mounts (user lands on home page)
+  useEffect(() => {
+    clearAuditSessionStorage();
+  }, []);
 
   const handleDeleteConfirm = async () => {
     if (!auditToDelete) return;
@@ -226,18 +223,21 @@ export default function Home() {
               Track and compare all your AUDIT audit reports in one place. View scores, dates, and improvement insights instantly.
             </p>
           </div>
-          {!isInvitedUser && (
-            <CustomButton
-              variant="primary"
-              size="lg"
-              onClick={() => {
-                clearAuditSessionStorage();
-                router.push("/add-new-audit/?category=1");
-              }}
-            >
-              Create New AUDIT
-            </CustomButton>
-          )}
+          <div className="flex gap-3">
+            {!isInvitedUser && (
+              <CustomButton
+                variant="primary"
+                size="lg"
+                onClick={() => {
+                  clearAuditSessionStorage();
+                  router.push("/add-new-audit/?category=1");
+                }}
+              >
+                Create New AUDIT
+              </CustomButton>
+            )}
+           
+          </div>
         </div>
       </div>
 
@@ -248,7 +248,7 @@ export default function Home() {
             <tr>
               <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">AUDIT Name</th>
               <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">Creation Date</th>
-              <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">Audit Score</th>
+             {/* <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">Audit Score</th> */}
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 border-b">Action</th>
             </tr>
           </thead>
@@ -259,7 +259,7 @@ export default function Home() {
                 <tr key={audit.id} className="border-b border-[#E0E0E0] hover:bg-gray-50">
                   <td className="px-6 border-r py-4 text-gray-800">{audit.title}</td>
                   <td className="px-6 border-r py-4 text-gray-600">{formatDate(audit.createdAt)}</td>
-                  <td className="px-6 border-r py-4">
+                  {/* <td className="px-6 border-r py-4">
                     {audit.latestScore !== undefined ? (
                       <span
                         className="px-3 py-1 rounded text-sm font-medium"
@@ -270,20 +270,21 @@ export default function Home() {
                     ) : (
                       <span className="text-gray-400 text-sm">No score</span>
                     )}
-                  </td>
+                  </td> */}
                   <td className="px-6 py-4">
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                       {!isInvitedUser && (
                         <>
                           <button
                             onClick={() => router.push(`/update-audit/?edit=${audit.id}&category=1`)}
-                            className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 flex items-center gap-1"
+                            className="px-3 py-1.5 text-center cursor-pointer bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 flex items-center gap-1"
                           >
                             <Edit size={14} />
                             Edit
                           </button>
                           <CustomButton
                             variant="redLight"
+                            className="text-center"
                             size="sm"
                             fullRounded={false}
                             leftIcon={<Trash2 size={14} />}
@@ -303,7 +304,7 @@ export default function Home() {
                       {!isInvitedUser && (
                         <button
                           onClick={() => handleInviteClick(audit)}
-                          className="px-3 cursor-pointer py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-1"
+                          className="px-3 cursor-pointer py-1.5 text-center bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-1"
                         >
                           <Mail size={14} />
                           Invite

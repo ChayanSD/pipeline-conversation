@@ -11,7 +11,7 @@ import { UpdateProfileData } from "@/validation/update-profile.validation";
 import { CustomButton } from "@/components/common";
 
 export default function ProfilePage() {
-  const { user } = useUser();
+  const { user, isInvitedUser } = useUser();
   const router = useRouter();
   const updateProfileMutation = useUpdateProfile();
   const [message, setMessage] = useState("");
@@ -122,7 +122,7 @@ export default function ProfilePage() {
         }
       }
 
-      if (companyLogo) {
+      if (companyLogo && !isInvitedUser) {
         setUploadingLogo(true);
         try {
           companyLogoUrl = await uploadToCloudinary(companyLogo);
@@ -137,22 +137,26 @@ export default function ProfilePage() {
 
       const dataToSend: Partial<UpdateProfileData> = {
         name: formData.name,
-        companyName: formData.companyName,
-        primaryColor: formData.primaryColor,
-        secondaryColor: formData.secondaryColor,
       };
+
+      // Only include company-related fields if user is not an invited user
+      if (!isInvitedUser) {
+        dataToSend.companyName = formData.companyName;
+        dataToSend.primaryColor = formData.primaryColor;
+        dataToSend.secondaryColor = formData.secondaryColor;
+        if (companyLogoUrl) {
+          dataToSend.companyLogoUrl = companyLogoUrl;
+        }
+      }
 
       // Only include passCode if it's provided
       if (formData.passCode) {
         dataToSend.passCode = formData.passCode;
       }
 
-      // Only include image URLs if they exist
+      // Only include profile image URL if it exists
       if (profileImageUrl) {
         dataToSend.profileImageUrl = profileImageUrl;
-      }
-      if (companyLogoUrl) {
-        dataToSend.companyLogoUrl = companyLogoUrl;
       }
 
       await updateProfileMutation.mutateAsync(dataToSend);
@@ -269,115 +273,123 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Company Name */}
-          <div>
-            <label htmlFor="companyName" className="block text-sm text-[#2d3e50] mb-2">
-              Company Name
-            </label>
-            <input
-              id="companyName"
-              name="companyName"
-              type="text"
-              value={formData.companyName}
-              onChange={handleInputChange}
-              className="w-full bg-[#f5f5f5] border-0 rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300"
-            />
-          </div>
+          {/* Company Name - Hidden for invited users */}
+          {!isInvitedUser && (
+            <div>
+              <label htmlFor="companyName" className="block text-sm text-[#2d3e50] mb-2">
+                Company Name
+              </label>
+              <input
+                id="companyName"
+                name="companyName"
+                type="text"
+                value={formData.companyName}
+                onChange={handleInputChange}
+                className="w-full bg-[#f5f5f5] border-0 rounded-md p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300"
+              />
+            </div>
+          )}
 
           {/* Colors and Images Row */}
-          <div className="grid grid-cols-2 gap-2">
-            {/* Primary Color */}
-            <div>
-              <label className="block text-sm text-[#2d3e50] mb-2">
-                Primary Color
-              </label>
-              <div className="relative">
-                <input
-                  id="primaryColor"
-                  name="primaryColor"
-                  type="color"
-                  value={formData.primaryColor}
-                  onChange={handleInputChange}
-                  className="absolute opacity-0 w-full h-full cursor-pointer"
-                />
-                <div className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer">
-                  <span className="flex items-center gap-2">
-                    <div
-                      className="w-5 h-5 rounded border border-gray-300"
-                      style={{ backgroundColor: formData.primaryColor }}
-                    />
-                    <span className="text-gray-800">{formData.primaryColor}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Secondary Color */}
-            <div>
-              <label className="block text-sm text-[#2d3e50] mb-2">
-                Secondary Color
-              </label>
-              <div className="relative">
-                <input
-                  id="secondaryColor"
-                  name="secondaryColor"
-                  type="color"
-                  value={formData.secondaryColor}
-                  onChange={handleInputChange}
-                  className="absolute opacity-0 w-full h-full cursor-pointer"
-                />
-                <div className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer">
-                  <span className="flex items-center gap-2">
-                    <div
-                      className="w-5 h-5 rounded border border-gray-300"
-                      style={{ backgroundColor: formData.secondaryColor }}
-                    />
-                    <span className="text-gray-800">{formData.secondaryColor}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Company Logo */}
-            <div>
-              <label className="block text-sm text-[#2d3e50] mb-2">
-                Company Logo
-              </label>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileChange(e, "company")}
-                  className="absolute opacity-0 w-full h-full cursor-pointer"
-                  id="companyLogo"
-                />
-                <label
-                  htmlFor="companyLogo"
-                  className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer"
-                >
-                  <span className="truncate">
-                    {logoPreview ? "File selected" : "No files chosen"}
-                  </span>
-                  <span className="bg-white px-3 py-1 rounded text-xs border border-gray-300 ml-2 whitespace-nowrap">
-                    Choose File
-                  </span>
+          <div className={`grid gap-2 ${isInvitedUser ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {/* Primary Color - Hidden for invited users */}
+            {!isInvitedUser && (
+              <div>
+                <label className="block text-sm text-[#2d3e50] mb-2">
+                  Primary Color
                 </label>
-              </div>
-              {uploadingLogo && (
-                <p className="text-xs text-[#2d3e50] mt-1">Uploading...</p>
-              )}
-              {logoPreview && !uploadingLogo && (
-                <div className="mt-2">
-                  <Image
-                    src={logoPreview}
-                    alt="Company Logo"
-                    width={64}
-                    height={64}
-                    className="h-16 w-auto object-contain"
+                <div className="relative">
+                  <input
+                    id="primaryColor"
+                    name="primaryColor"
+                    type="color"
+                    value={formData.primaryColor}
+                    onChange={handleInputChange}
+                    className="absolute opacity-0 w-full h-full cursor-pointer"
                   />
+                  <div className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer">
+                    <span className="flex items-center gap-2">
+                      <div
+                        className="w-5 h-5 rounded border border-gray-300"
+                        style={{ backgroundColor: formData.primaryColor }}
+                      />
+                      <span className="text-gray-800">{formData.primaryColor}</span>
+                    </span>
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* Secondary Color - Hidden for invited users */}
+            {!isInvitedUser && (
+              <div>
+                <label className="block text-sm text-[#2d3e50] mb-2">
+                  Secondary Color
+                </label>
+                <div className="relative">
+                  <input
+                    id="secondaryColor"
+                    name="secondaryColor"
+                    type="color"
+                    value={formData.secondaryColor}
+                    onChange={handleInputChange}
+                    className="absolute opacity-0 w-full h-full cursor-pointer"
+                  />
+                  <div className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer">
+                    <span className="flex items-center gap-2">
+                      <div
+                        className="w-5 h-5 rounded border border-gray-300"
+                        style={{ backgroundColor: formData.secondaryColor }}
+                      />
+                      <span className="text-gray-800">{formData.secondaryColor}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Company Logo - Hidden for invited users */}
+            {!isInvitedUser && (
+              <div>
+                <label className="block text-sm text-[#2d3e50] mb-2">
+                  Company Logo
+                </label>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, "company")}
+                    className="absolute opacity-0 w-full h-full cursor-pointer"
+                    id="companyLogo"
+                  />
+                  <label
+                    htmlFor="companyLogo"
+                    className="w-full bg-[#f5f5f5] border-0 rounded-md px-4 py-3 text-gray-500 text-sm flex items-center justify-between cursor-pointer"
+                  >
+                    <span className="truncate">
+                      {logoPreview ? "File selected" : "No files chosen"}
+                    </span>
+                    <span className="bg-white px-3 py-1 rounded text-xs border border-gray-300 ml-2 whitespace-nowrap">
+                      Choose File
+                    </span>
+                  </label>
+                </div>
+                {uploadingLogo && (
+                  <p className="text-xs text-[#2d3e50] mt-1">Uploading...</p>
+                )}
+                {logoPreview && !uploadingLogo && (
+                  <div className="mt-2">
+                    <Image
+                      src={logoPreview}
+                      alt="Company Logo"
+                      width={64}
+                      height={64}
+                      className="h-16 w-auto object-contain"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Profile Photo */}
             <div>

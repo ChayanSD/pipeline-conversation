@@ -49,3 +49,22 @@ export function useSendAuditInvite() {
   });
 }
 
+// Get sent invitations
+export function useSentInvitations() {
+  return useQuery({
+    queryKey: [...inviteKeys.all, 'sent'],
+    queryFn: async () => {
+      const response = await apiClient.get<{ success: boolean; data: Array<{
+        id: string;
+        email: string;
+        status: string;
+        role: string;
+        createdAt: string;
+        expiresAt: string;
+        presentation: { id: string; title: string } | null;
+      }> }>('/invite/sent');
+      return response.data;
+    },
+  });
+}
+

@@ -73,6 +73,51 @@ export async function PATCH(request: NextRequest) : Promise<NextResponse> {
       },
     });
 
+    // If primaryColor or secondaryColor was updated, update all invited users' colors
+    if (primaryColor || secondaryColor) {
+      try {
+        // Find all accepted invitations sent by this user
+        const acceptedInvitations = await prisma.invitation.findMany({
+          where: {
+            invitedById: session.id,
+            status: 'ACCEPTED',
+          },
+          select: {
+            email: true,
+          },
+        });
+
+        if (acceptedInvitations.length > 0) {
+          // Get the emails of invited users
+          const invitedUserEmails = acceptedInvitations.map(inv => inv.email);
+
+          // Prepare color update data for invited users
+          const invitedUserColorUpdate: {
+            primaryColor?: string;
+            secondaryColor?: string;
+          } = {};
+
+          if (primaryColor) {
+            invitedUserColorUpdate.primaryColor = primaryColor;
+          }
+          if (secondaryColor) {
+            invitedUserColorUpdate.secondaryColor = secondaryColor;
+          }
+
+          // Update all invited users' colors
+          await prisma.user.updateMany({
+            where: {
+              email: { in: invitedUserEmails },
+            },
+            data: invitedUserColorUpdate,
+          });
+        }
+      } catch (error) {
+        // Log error but don't fail the profile update
+        console.error('Error updating invited users colors:', error);
+      }
+    }
+
     // Update company name and logo if provided
     const companyUpdateData: { name?: string; logoUrl?: string } = {};
     if (companyName && companyName !== session.company?.name) {
