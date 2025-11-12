@@ -351,24 +351,6 @@ export default function AddNewAudit() {
               categoryMap[`temp-${idx}`] = cat.id;
             });
             
-            // Update summary with real category IDs if recommendations exist
-            if (Array.isArray(summaryData.categoryRecommendations) && summaryData.categoryRecommendations.length > 0) {
-              const mappedRecommendations = summaryData.categoryRecommendations.map((rec: { categoryId: string; recommendation: string }) => ({
-                categoryId: categoryMap[rec.categoryId] || rec.categoryId,
-                recommendation: rec.recommendation,
-              }));
-              
-              // Update the summary with mapped category IDs
-              await fetch(`/api/summary/${createdAudit.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  presentationId: createdAudit.id,
-                  categoryRecommendations: mappedRecommendations,
-                }),
-              });
-            }
-            
             // Clear summary data from sessionStorage
             sessionStorage.removeItem('summaryData');
           } catch (error) {

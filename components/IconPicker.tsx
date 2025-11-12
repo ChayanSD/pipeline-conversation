@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import * as LucideIcons from 'lucide-react';
 
 interface IconPickerProps {
@@ -43,8 +44,15 @@ export default function IconPicker({
 }: IconPickerProps) {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  // Ensure we're mounted (client-side only)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   // Use controlled isOpen if provided, otherwise use internal state
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
@@ -75,9 +83,12 @@ export default function IconPicker({
     if (!isOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      // Check if click is outside both the container and the portal dropdown
       if (
         containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        !containerRef.current.contains(target) &&
+        !(target instanceof Element && target.closest('[data-icon-picker-dropdown]'))
       ) {
         if (controlledIsOpen === undefined) {
           setInternalIsOpen(false);
@@ -98,6 +109,49 @@ export default function IconPicker({
       document.removeEventListener('mousedown', handleClickOutside, true);
     };
   }, [isOpen, controlledIsOpen, onClose]);
+
+  // Calculate dropdown position when it opens and update on scroll/resize
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+
+    const updatePosition = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const dropdownHeight = 250;
+      const dropdownWidth = 250;
+      
+      let top = showButton ? rect.bottom + 4 : rect.top;
+      let left = rect.left;
+      
+      // Adjust if dropdown would go off bottom of screen
+      if (top + dropdownHeight > window.innerHeight) {
+        top = showButton ? rect.top - dropdownHeight - 4 : rect.bottom - dropdownHeight;
+      }
+      
+      // Adjust if dropdown would go off right side of screen
+      if (left + dropdownWidth > window.innerWidth) {
+        left = window.innerWidth - dropdownWidth - 10;
+      }
+      
+      // Ensure it doesn't go off left side
+      if (left < 10) {
+        left = 10;
+      }
+      
+      setDropdownPosition({ top, left });
+    };
+
+    updatePosition();
+    
+    // Update position on scroll and resize
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen, showButton]);
 
   // Focus search input when dropdown opens
   useEffect(() => {
@@ -132,7 +186,7 @@ export default function IconPicker({
     <div 
       className={`relative ${className}`} 
       ref={containerRef}
-      style={{ zIndex: isOpen ? 10000 : 'auto' }}
+      style={{ zIndex: isOpen ? 99999 : 'auto', position: 'relative' }}
     >
       {/* Trigger Button - only show if showButton is true */}
       {showButton && (
@@ -147,7 +201,7 @@ export default function IconPicker({
             setIsOpen((prev) => !prev);
           }}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center justify-between bg-white hover:bg-gray-50 transition-colors"
-          style={{ position: 'relative', zIndex: isOpen ? 10001 : 'auto' }}
+          style={{ position: 'relative', zIndex: isOpen ? 99999 : 'auto' }}
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {value && selectedIconComponent ? (
@@ -177,19 +231,20 @@ export default function IconPicker({
         </button>
       )}
 
-      {/* Dropdown */}
-      {isOpen && (
+      {/* Dropdown - Render via Portal to escape overflow constraints */}
+      {isOpen && mounted && createPortal(
         <div
-          className="absolute mt-1 bg-white border border-gray-300 rounded-md shadow-xl"
+          data-icon-picker-dropdown
+          className="bg-white border border-gray-300 rounded-md shadow-xl"
           style={{
             width: '250px',
             height: '250px',
             display: 'flex',
             flexDirection: 'column',
-            top: showButton ? '100%' : '0',
-            left: 0,
-            zIndex: 10002,
-            position: 'absolute',
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            zIndex: 99999,
+            position: 'fixed',
           }}
           onMouseDown={(e) => {
             e.stopPropagation();
@@ -253,7 +308,8 @@ export default function IconPicker({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

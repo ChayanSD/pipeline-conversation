@@ -568,30 +568,39 @@ export default function Sidebar() {
         if (summaryDataStr) {
           try {
             const summaryData = JSON.parse(summaryDataStr);
-            
-            // Create a map of categoryId to recommendation from current summary data
-            const recommendationMap: Record<string, string> = {};
             if (summaryData.categoryRecommendations && Array.isArray(summaryData.categoryRecommendations)) {
-              summaryData.categoryRecommendations.forEach((rec: { categoryId: string; recommendation: string }) => {
-                recommendationMap[rec.categoryId] = rec.recommendation || "";
-              });
+              const oldRecommendations: Array<{ categoryId: string; recommendation: string }> = summaryData.categoryRecommendations;
+              const reorderedRecommendations: Array<{ categoryId: string; recommendation: string }> = [];
+
+              // Build new recommendations array based on oldToNewMap
+              for (let oldPos = 1; oldPos <= oldRecommendations.length; oldPos++) {
+                const recommendation = oldRecommendations[oldPos - 1];
+                if (!recommendation) continue;
+
+                const newPos = oldToNewMap[oldPos] ?? oldPos;
+                const newCategory = reorderedCategories[newPos - 1];
+                const newCategoryId = newCategory?.id || recommendation.categoryId || '';
+
+                reorderedRecommendations[newPos - 1] = {
+                  categoryId: newCategoryId,
+                  recommendation: recommendation.recommendation || "",
+                };
+              }
+
+              // Ensure array has entries for all categories
+              for (let idx = 0; idx < reorderedCategories.length; idx++) {
+                if (!reorderedRecommendations[idx]) {
+                  reorderedRecommendations[idx] = {
+                    categoryId: reorderedCategories[idx]?.id || '',
+                    recommendation: "",
+                  };
+                }
+              }
+
+              summaryData.categoryRecommendations = reorderedRecommendations;
+              sessionStorage.setItem('summaryData', JSON.stringify(summaryData));
+              window.dispatchEvent(new Event('summaryDataUpdated'));
             }
-            
-            // Reorder categoryRecommendations to match new category order
-            const reorderedRecommendations = reorderedCategories.map((cat: { id?: string; name?: string }) => {
-              const categoryId = cat.id || '';
-              return {
-                categoryId: categoryId,
-                recommendation: recommendationMap[categoryId] || "",
-              };
-            });
-            
-            // Update summaryData with reordered recommendations
-            summaryData.categoryRecommendations = reorderedRecommendations;
-            sessionStorage.setItem('summaryData', JSON.stringify(summaryData));
-            
-            // Dispatch event to notify SummarySection that summary data was updated
-            window.dispatchEvent(new Event('summaryDataUpdated'));
           } catch (error) {
             console.error('Error reordering summary data:', error);
             // Don't fail the category reorder if summary update fails
@@ -608,6 +617,14 @@ export default function Sidebar() {
 
         // Dispatch event to update sidebar and other components
         window.dispatchEvent(new Event('categoryNameUpdated'));
+        
+        // Dispatch specific event for category reorder to notify UpdateAudit
+        window.dispatchEvent(new CustomEvent('categoriesReordered', {
+          detail: {
+            oldToNewMap: oldToNewMap,
+            reorderedCategories: reorderedCategories,
+          }
+        }));
         
         // Update URL if user is viewing one of the moved categories
         const currentCategory = parseInt(new URLSearchParams(window.location.search).get('category') || '1', 10);
@@ -672,7 +689,11 @@ export default function Sidebar() {
   let effectiveItems: NavigationItem[] = [];
   
   // Only show categories and summary on specific audit pages, NOT on main page
-  if ((onNewAuditPage || onUpdateAuditPage || onSummaryPage || onTestPage) && !onMainPage) {
+  // Explicitly check that we're NOT on the main page first
+  if (onMainPage) {
+    // On main page, only show ALL AUDITS button
+    effectiveItems = [...navigationItems];
+  } else if (onNewAuditPage || onUpdateAuditPage || onSummaryPage || onTestPage) {
     const editId = searchParams.get('edit');
     const presentationId = searchParams.get('presentationId');
     // Determine the base path for categories - summary page should use update-audit if editId exists, otherwise add-new-audit
@@ -729,7 +750,7 @@ export default function Sidebar() {
       ? [...categoryItems, summaryItem]
       : [...categoryItems];
   } else {
-    // On main page or other pages, just show navigation items (ALL AUDITS)
+    // For any other page (not main, not audit pages), just show navigation items (ALL AUDITS)
     effectiveItems = [...navigationItems];
   }
 
@@ -938,8 +959,9 @@ export default function Sidebar() {
                         <div 
                           className="relative"
                           style={{ 
-                            zIndex: 10000,
-                            overflow: 'visible'
+                            zIndex: 99999,
+                            overflow: 'visible',
+                            position: 'relative'
                           }}
                           onMouseDown={(e) => {
                             e.stopPropagation();
@@ -1120,7 +1142,7 @@ export default function Sidebar() {
             <div className="flex items-center justify-center" style={{ marginBottom: 'clamp(0.75rem, 3vw, 1.25rem)' }}>
               {user.profileImageUrl ? (
                 <Image
-                  className="rounded-lg w-[180px] h-[199px] object-cover cursor-pointer"
+                  className="rounded-lg w-[180px]  h-[199px] object-cover cursor-pointer"
                   src={user.profileImageUrl}
                   alt="Profile"
                   width={180}
