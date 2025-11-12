@@ -20,7 +20,7 @@ interface AuditWithScore extends Presentation {
 }
 
 export default function Home() {
-  const { user } = useUser();
+  const { user, isInvitedUser, setIsInvitedUser } = useUser();
   const router = useRouter();
   const { data: authData, isLoading: authLoading } = useAuthCheck();
   const { data: auditsData, isLoading: auditsLoading, error: auditsError } = useAudits();
@@ -30,7 +30,6 @@ export default function Home() {
   const [auditToDelete, setAuditToDelete] = useState<string | null>(null);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [auditToInvite, setAuditToInvite] = useState<{ id: string; title: string } | null>(null);
-  const [isInvitedUser, setIsInvitedUser] = useState(false);
 
   useEffect(() => {
     if (!authLoading && authData) {
@@ -48,17 +47,22 @@ export default function Home() {
     }
   }, [auditsError]);
 
-  // Process audits to include latest score and check if user is invited
-  const audits = useMemo<AuditWithScore[]>(() => {
-    if (!auditsData) return [];
+  // Extract isInvitedUser flag from audits response
+  useEffect(() => {
+    if (!auditsData) return;
     
-    // Check if response includes isInvitedUser flag
     const responseData = auditsData as { data?: Presentation[]; isInvitedUser?: boolean } | Presentation[];
     
     if (responseData && typeof responseData === 'object' && !Array.isArray(responseData) && 'isInvitedUser' in responseData) {
       setIsInvitedUser(responseData.isInvitedUser || false);
     }
+  }, [auditsData, setIsInvitedUser]);
+
+  // Process audits to include latest score
+  const audits = useMemo<AuditWithScore[]>(() => {
+    if (!auditsData) return [];
     
+    const responseData = auditsData as { data?: Presentation[]; isInvitedUser?: boolean } | Presentation[];
     const auditsList = Array.isArray(responseData) 
       ? responseData 
       : responseData?.data || [];
@@ -219,18 +223,21 @@ export default function Home() {
               Track and compare all your AUDIT audit reports in one place. View scores, dates, and improvement insights instantly.
             </p>
           </div>
-          {!isInvitedUser && (
-            <CustomButton
-              variant="primary"
-              size="lg"
-              onClick={() => {
-                clearAuditSessionStorage();
-                router.push("/add-new-audit/?category=1");
-              }}
-            >
-              Create New AUDIT
-            </CustomButton>
-          )}
+          <div className="flex gap-3">
+            {!isInvitedUser && (
+              <CustomButton
+                variant="primary"
+                size="lg"
+                onClick={() => {
+                  clearAuditSessionStorage();
+                  router.push("/add-new-audit/?category=1");
+                }}
+              >
+                Create New AUDIT
+              </CustomButton>
+            )}
+           
+          </div>
         </div>
       </div>
 

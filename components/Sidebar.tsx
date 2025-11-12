@@ -20,7 +20,7 @@ type NavigationItem = {
 };
 
 export default function Sidebar() {
-  const { user } = useUser();
+  const { user, isInvitedUser } = useUser();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -674,6 +674,11 @@ export default function Sidebar() {
       href: '/',
       icon: ''
     },
+    ...(isInvitedUser ? [] : [{
+      name: 'ALL TEAM MEMBERS',
+      href: '/invited-users',
+      icon: ''
+    }]),
   ];
 
   // When on add-new-audit, update-audit, summary, or test page, show Category 1-7 and hide ALL AUDITS button
@@ -863,6 +868,8 @@ export default function Sidebar() {
           // Test page: active = white bg, inactive = primary color with opacity + white text
           const isTestPageCategory = onTestPage && isCategoryItem;
           const isEditing = itemCategoryNumber !== null && editingCategory === itemCategoryNumber;
+          // Check if this is a navigation item (ALL AUDITS, ALL TEAM MEMBERS)
+          const isNavigationItem = !isCategoryItem && item.name !== 'Summary';
           
           // Determine background and text colors
           let backgroundColor = 'white';
@@ -876,6 +883,11 @@ export default function Sidebar() {
             // Test page: active = white, inactive = primary with opacity
             backgroundColor = isActive ? 'white' : hexToRgba(primaryColor, 0.9);
             textColor = isActive ? 'black' : 'white';
+          } else if (isNavigationItem && !isActive) {
+            // Navigation items (ALL AUDITS, ALL TEAM MEMBERS) when inactive: match category button style
+            // Use primary color with opacity background and white text (like category buttons on create/update pages)
+            backgroundColor = primaryColorWithOpacity;
+            textColor = '#ffffff80';
           } else {
             // Default: white background
             backgroundColor = 'white';
@@ -1021,10 +1033,12 @@ export default function Sidebar() {
                         e.stopPropagation();
                         // Allow navigation if:
                         // 1. Not editing category name
-                        // 2. Either it's a category item (itemCategoryNumber !== null) and not editing icon, OR it's the Summary item
+                        // 2. Either it's a category item (itemCategoryNumber !== null) and not editing icon, OR it's the Summary item, OR it's a non-category item (like ALL AUDITS)
                         const isSummaryItem = item.name === 'Summary';
+                        const isNonCategoryItem = itemCategoryNumber === null && !isSummaryItem;
                         const canNavigate = !isEditing && (
                           isSummaryItem || 
+                          isNonCategoryItem ||
                           (itemCategoryNumber !== null && editingIconCategory !== itemCategoryNumber)
                         );
                         if (canNavigate) {
