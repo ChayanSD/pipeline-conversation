@@ -7,9 +7,11 @@ import { useAuthCheck } from "@/lib/hooks";
 import toast from "react-hot-toast";
 import { useEffect } from "react";
 import CustomButton from "@/components/common/CustomButton";
+import InvitedUsersSkeleton from "@/components/InvitedUsersSkeleton";
+import "react-loading-skeleton/dist/skeleton.css";
 
 export default function InvitedUsersPage() {
-  const { user, isInvitedUser } = useUser();
+  const { user } = useUser();
   const router = useRouter();
   const { data: authData, isLoading: authLoading } = useAuthCheck();
   const { data: invitations, isLoading: invitationsLoading, error: invitationsError } = useSentInvitations();
@@ -59,11 +61,7 @@ export default function InvitedUsersPage() {
   };
 
   if (authLoading || invitationsLoading || !user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
+    return <InvitedUsersSkeleton />;
   }
 
   return (
