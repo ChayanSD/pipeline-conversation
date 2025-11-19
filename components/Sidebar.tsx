@@ -31,6 +31,7 @@ export default function Sidebar() {
   const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
   const [dragOverCategoryIndex, setDragOverCategoryIndex] = useState<number | null>(null);
   const [actualCategoryCount, setActualCategoryCount] = useState<number>(7);
+  const [dragHandleCategory, setDragHandleCategory] = useState<number | null>(null);
   
   // Load test result data for summary overview
   const [testResultData, setTestResultData] = useState<{
@@ -43,25 +44,9 @@ export default function Sidebar() {
     }>;
   } | null>(null);
 
-  // Helper function to convert hex to rgba with opacity (same as BackgroundWrapper)
-  const hexToRgba = (hex: string, opacity: number): string => {
-    const cleanHex = hex.replace('#', '');
-    let fullHex = cleanHex;
-    if (cleanHex.length === 3) {
-      fullHex = cleanHex.split('').map(char => char + char).join('');
-    }
-    if (fullHex.length !== 6) return hex;
-    const r = parseInt(fullHex.substring(0, 2), 16);
-    const g = parseInt(fullHex.substring(2, 4), 16);
-    const b = parseInt(fullHex.substring(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  };
-
   // Get user's primary color with opacity
   const primaryColor = user?.primaryColor || '#2B4055';
   const secondaryColor = user?.secondaryColor || '#F7AF41';
-  const primaryColorWithOpacity = hexToRgba(primaryColor, 0.90); // 80% opacity for background
-  const primaryColorOverlay = hexToRgba(primaryColor, 0.70); // 70% opacity for BackgroundWrapper-style overlay
 
   // Load test result data for summary overview
   useEffect(() => {
@@ -905,7 +890,18 @@ export default function Sidebar() {
             <div
               key={item.name}
               draggable={canDrag && !isSummaryItem}
-              onDragStart={canDrag && !isSummaryItem ? (e) => handleCategoryDragStart(e, itemCategoryNumber! - 1) : undefined}
+              onDragStart={(e) => {
+                if (!canDrag || isSummaryItem) {
+                  e.preventDefault();
+                  return;
+                }
+                if (itemCategoryNumber === null || dragHandleCategory !== itemCategoryNumber) {
+                  e.preventDefault();
+                  return;
+                }
+                handleCategoryDragStart(e, itemCategoryNumber - 1);
+              }}
+              onDragEnd={() => setDragHandleCategory(null)}
               onDragOver={canDrag && !isSummaryItem ? (e) => handleCategoryDragOver(e, itemCategoryNumber! - 1) : undefined}
               onDragLeave={canDrag && !isSummaryItem ? handleCategoryDragLeave : undefined}
               onDrop={canDrag && !isSummaryItem ? (e) => handleCategoryDrop(e, itemCategoryNumber! - 1) : undefined}
@@ -954,15 +950,26 @@ export default function Sidebar() {
               ) : (
                 <div className="w-full h-full flex items-center justify-between relative">
                   {canDrag && (
-                    <svg 
-                      className="w-4 h-4 mr-2 flex-shrink-0" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                      style={{ color: 'inherit', opacity: 0.6 }}
+                    <div
+                      className="w-4 h-4 mr-2 shrink-0 cursor-grab"
+                      onMouseDown={() => {
+                        if (itemCategoryNumber !== null) {
+                          setDragHandleCategory(itemCategoryNumber);
+                        }
+                      }}
+                      onMouseUp={() => setDragHandleCategory(null)}
+                      onMouseLeave={() => setDragHandleCategory(null)}
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                    </svg>
+                      <svg 
+                        className="w-4 h-4" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                        style={{ color: 'inherit', opacity: 0.6 }}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                      </svg>
+                    </div>
                   )}
                   <div className="flex-1 h-full flex items-center gap-2">
                     {/* Category icon - clickable to open icon picker on create/update pages */}
