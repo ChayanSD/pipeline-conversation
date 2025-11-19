@@ -21,16 +21,16 @@ export default function TestPresentation() {
   const presentationId = searchParams.get('presentationId');
   const currentCategory = parseInt(searchParams.get('category') || '1', 10);
   const { user } = useUser();
-  
+
   const { data: auditData, isLoading: auditLoading, error: auditError } = useAudit(presentationId);
   const { data: questionsData, isLoading: questionsLoading, error: questionsError } = useTestQuestions(presentationId);
   const submitTestMutation = useSubmitTest();
-  
+
   // Get summary data from audit data (summary is included in the API response)
-  const summaryData = auditData && 'summary' in auditData 
+  const summaryData = auditData && 'summary' in auditData
     ? (auditData as Presentation & { summary?: { categoryRecommendations?: string | Array<{ categoryId: string; recommendation: string }>; nextSteps?: string | Array<{ type: string; content: string; fileUrl?: string }>; overallDetails?: string | null } | null })?.summary || null
     : null;
-  
+
   // Load answers from localStorage on mount
   const [answers, setAnswers] = useState<Record<string, string>>(() => {
     if (typeof window === 'undefined' || !presentationId) return {};
@@ -42,7 +42,7 @@ export default function TestPresentation() {
       return {};
     }
   }); // questionId -> optionId
-  
+
   const [categoryScores, setCategoryScores] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined' || !presentationId) return {};
     try {
@@ -53,7 +53,7 @@ export default function TestPresentation() {
       return {};
     }
   }); // categoryId -> total score
-  
+
   const primaryColor = user?.primaryColor || '#2B4055';
 
   // Helper function to get background color based on option points (1-5)
@@ -136,7 +136,7 @@ export default function TestPresentation() {
         } else {
           setAnswers({});
         }
-        
+
         const savedScores = localStorage.getItem(`testCategoryScores:${presentationId}`);
         if (savedScores) {
           setCategoryScores(JSON.parse(savedScores));
@@ -164,7 +164,7 @@ export default function TestPresentation() {
           sessionStorage.setItem(`auditData:categoryIcon:${categoryNumber}`, category.icon);
         }
       });
-      
+
       // Store audit data structure for sidebar to count categories
       const auditDataForStorage = {
         id: auditData.id,
@@ -177,7 +177,7 @@ export default function TestPresentation() {
         })),
       };
       sessionStorage.setItem('auditData', JSON.stringify(auditDataForStorage));
-      
+
       // Dispatch event to update sidebar
       window.dispatchEvent(new Event('categoryNameUpdated'));
     }
@@ -190,13 +190,13 @@ export default function TestPresentation() {
         const summaryToStore = {
           categoryRecommendations: summaryData.categoryRecommendations
             ? (typeof summaryData.categoryRecommendations === 'string'
-                ? JSON.parse(summaryData.categoryRecommendations)
-                : summaryData.categoryRecommendations)
+              ? JSON.parse(summaryData.categoryRecommendations)
+              : summaryData.categoryRecommendations)
             : [],
           nextSteps: summaryData.nextSteps
             ? (typeof summaryData.nextSteps === 'string'
-                ? JSON.parse(summaryData.nextSteps)
-                : summaryData.nextSteps)
+              ? JSON.parse(summaryData.nextSteps)
+              : summaryData.nextSteps)
             : [],
           overallDetails: summaryData.overallDetails || "",
         };
@@ -239,7 +239,7 @@ export default function TestPresentation() {
 
   const loading = auditLoading || questionsLoading;
   const presentation = auditData || null;
-  
+
   // Memoize questions to prevent unnecessary re-renders
   const questions = useMemo(() => questionsData || [], [questionsData]);
 
@@ -343,7 +343,7 @@ export default function TestPresentation() {
   // Get current category and its score
   const currentCategoryData = presentation?.categories[currentCategory - 1];
   const currentCategoryScore = currentCategoryData ? (categoryScores[currentCategoryData.id] || 0) : 0;
-  
+
   // Calculate max score for current category
   const getCategoryMaxScore = (categoryId: string): number => {
     if (!questions.length) return 0;
@@ -376,9 +376,9 @@ export default function TestPresentation() {
     return (
       <div className="flex flex-col items-center">
         <div className="relative" style={{ width: `${size}px`, height: `${size}px` }}>
-          <svg 
-            className="transform -rotate-90" 
-            width={size} 
+          <svg
+            className="transform -rotate-90"
+            width={size}
             height={size}
             style={{ width: `${size}px`, height: `${size}px` }}
           >
@@ -421,9 +421,9 @@ export default function TestPresentation() {
       </div>
     );
   };
-const filteredCategories = (categories: Presentation['categories']): Category[] => {
-  return categories.filter((category: Category) => category.name.toLowerCase() !== 'summary');
-};
+  const filteredCategories = (categories: Presentation['categories']): Category[] => {
+    return categories.filter((category: Category) => category.name.toLowerCase() !== 'summary');
+  };
 
   return (
     <div className="h-screen flex flex-col">
@@ -444,7 +444,7 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
               );
             })}
             {/* Summary Icon */}
-            <div 
+            <div
               className="flex flex-col items-center ml-4 cursor-pointer"
               onClick={() => {
                 if (typeof window !== 'undefined' && presentationId && presentation) {
@@ -489,7 +489,7 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                     }),
                   };
                   sessionStorage.setItem('testResultData', JSON.stringify(testResultData));
-                  
+
                   // Store category names
                   presentation.categories.forEach((category, index) => {
                     const categoryNumber = index + 1;
@@ -539,16 +539,16 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
             </p>
           </div>
         </div>
-       
-     
-          <div className="px-24 flex items-center justify-between">
-            {["questions", "answers", "score"].map((item,i) => (
-              <p key={i} className={`text-[22px] text-white capitalize font-500 tracking-[0.352px] leading-normal font-medium ${i === 1 ? "ml-56":""}`}>
-                {item}
-              </p>
-            ))}
-          </div>
-       
+
+
+        <div className="px-24 flex items-center justify-between">
+          {["questions", "answers", "score"].map((item, i) => (
+            <p key={i} className={`text-[22px] text-white capitalize font-500 tracking-[0.352px] leading-normal font-medium ${i === 1 ? "ml-56" : ""}`}>
+              {item}
+            </p>
+          ))}
+        </div>
+
       </header>
       <main className="px-24 pt-3 bg-white flex-1 pb-10 overflow-y-auto">
         <div className="">
@@ -559,7 +559,7 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                   const selectedOptionId = answers[question.id];
                   const selectedOption = question.options.find(opt => opt.id === selectedOptionId);
                   const score = selectedOption ? selectedOption.points : 0;
-                  
+
                   return (
                     <tr key={question.id} className="border-b border-r border-[#E8E8E8]">
                       <td className="border-r border-gray-300 px-4  text-center align-middle w-16">
@@ -570,22 +570,22 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                           <span className="text-gray-900">{question.text}</span>
                         </div>
                       </td>
-                      <td className="border-r  border-gray-300 px-4 align-middle">
+                      <td className="border-r border-gray-300 px-4 align-middle">
                         <div className="relative" data-question-id={question.id}>
                           <Select
                             value={selectedOptionId || undefined}
                             onValueChange={(value) => handleAnswerChange(question.id, value)}
                           >
-                            <SelectTrigger 
-                              className="w-[30vw] h-[2.6vh] my-2 text-black ring-0 outline-none  bg-[#E8E8E8] border-none rounded-lg [&>svg]:hidden "
+                            <SelectTrigger
+                              className="w-[30vw] h-[2.6vh] my-2 text-sm font-normal text-gray-700 ring-0 outline-none focus:ring-0 focus:ring-offset-0 bg-[#E8E8E8] border-none rounded-md [&>svg]:hidden px-3 pr-10"
                               data-question-id={question.id}
                             >
-                              <SelectValue 
-                                placeholder="" 
-                                className="text-black"
+                              <SelectValue
+                                placeholder=""
+                                className="text-gray-700 font-normal"
                               />
                             </SelectTrigger>
-                            <SelectContent className="bg-transparent border-none">
+                            <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-md">
                               {question.options.map((option) => {
                                 const backgroundColor = getOptionBackgroundColor(option.points);
                                 const textColor = getOptionTextColor(option.points);
@@ -593,14 +593,14 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                                   <SelectItem
                                     key={option.id}
                                     value={option.id}
-                                    className="cursor-pointer rounded-sm"
-                                    style={{ 
+                                    className="cursor-pointer rounded-sm px-3 py-2 text-sm focus:outline-none"
+                                    style={{
                                       backgroundColor: backgroundColor,
                                       color: textColor,
                                     }}
                                     onMouseEnter={(e) => {
                                       const target = e.currentTarget;
-                                      target.style.opacity = '1';
+                                      target.style.opacity = '0.9';
                                       target.style.backgroundColor = backgroundColor;
                                     }}
                                     onMouseLeave={(e) => {
@@ -619,21 +619,20 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                             </SelectContent>
                           </Select>
                           <div
-                            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded pointer-events-none"
+                            className="absolute right-0 top-0 h-full w-10 flex items-center justify-center rounded-md pointer-events-none"
                             style={{
-                              backgroundColor: selectedOption ? getOptionColor(selectedOption.points) : '#E8E8E8',
+                              backgroundColor: selectedOption ? getOptionColor(selectedOption.points) : 'transparent',
                             }}
                           >
                             <svg
-                              className="w-4 h-4"
+                              className="w-4 h-2"
                               style={{
-                                color: selectedOption ? 'white' : '#333',
+                                color: selectedOption ? 'white' : '#606060',
                               }}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              viewBox="0 0 12 8"
                             >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              <path d="M6 8L0 0h12L6 8z" />
                             </svg>
                           </div>
                         </div>
@@ -655,7 +654,7 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                     </td>
                     <td className="border-r border-gray-300 px-4 py-1 align-middle">
                       <div className="w-full px-4 h-[2.8vh] border-[#E8E8E8] rounded-xl flex items-center justify-end">
-                        <span className="text-gray-50 rounded-lg p-1 px-2 font-semibold " style={{backgroundColor: primaryColor}}>Total Score</span>
+                        <span className="text-gray-50 rounded-lg p-1 px-2 font-semibold " style={{ backgroundColor: primaryColor }}>Total Score</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center align-middle w-16">
@@ -674,54 +673,51 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
             <div className="mt-6 grid grid-cols-3 gap-0">
               {/* Block 1: Low Score */}
               <div className="bg-white rounded-tl-xl  border-r-2  border-white ">
-                <div 
-                  className={`rounded-tl-xl text-center py-1 ${
-                    currentCategoryScore >= 1 && currentCategoryScore <= Math.floor(currentCategoryMaxScore * 0.4)
-                      ? 'bg-[#F65355] text-white' 
-                      : 'bg-[#E8E8E8] text-gray-800'
-                  }`}
+                <div
+                  className={`rounded-tl-xl text-center py-1 ${currentCategoryScore >= 1 && currentCategoryScore <= Math.floor(currentCategoryMaxScore * 0.4)
+                    ? 'bg-[#F65355] text-white'
+                    : 'bg-[#E8E8E8] text-gray-800'
+                    }`}
                 >
                   <h3 className="text-base font-semibold">Score: 1 - {Math.floor(currentCategoryMaxScore * 0.4)}</h3>
                 </div>
                 <div className="mt-3">
                   <p className="text-sm px-4 border-r-2 border-gray-200 text-gray-700 leading-relaxed">
-                  This score range indicates areas that require urgent attention and immediate improvement. Critical gaps have been identified that need to be addressed as a priority to enhance overall performance and compliance.
+                    This score range indicates areas that require urgent attention and immediate improvement. Critical gaps have been identified that need to be addressed as a priority to enhance overall performance and compliance.
                   </p>
                 </div>
               </div>
 
               {/* Block 2: Medium Score */}
               <div className="bg-white">
-                <div 
-                  className={`text-center py-1 ${
-                    currentCategoryScore > Math.floor(currentCategoryMaxScore * 0.4) && currentCategoryScore <= Math.floor(currentCategoryMaxScore * 0.8)
-                      ? 'bg-[#F7AF41] text-white' 
-                      : 'bg-[#E8E8E8] text-gray-800'
-                  }`}
+                <div
+                  className={`text-center py-1 ${currentCategoryScore > Math.floor(currentCategoryMaxScore * 0.4) && currentCategoryScore <= Math.floor(currentCategoryMaxScore * 0.8)
+                    ? 'bg-[#F7AF41] text-white'
+                    : 'bg-[#E8E8E8] text-gray-800'
+                    }`}
                 >
                   <h3 className="text-base font-semibold">Score: {Math.floor(currentCategoryMaxScore * 0.4) + 1} - {Math.floor(currentCategoryMaxScore * 0.8)}</h3>
                 </div>
                 <div className="mt-3">
                   <p className="text-sm px-4 text-gray-700 leading-relaxed">
-                  This score range represents average performance with room for enhancement. While basic standards are met, there are opportunities to strengthen processes and achieve better outcomes through targeted improvements.
-                    </p>
+                    This score range represents average performance with room for enhancement. While basic standards are met, there are opportunities to strengthen processes and achieve better outcomes through targeted improvements.
+                  </p>
                 </div>
               </div>
 
               {/* Block 3: High Score */}
               <div className="bg-white">
-                <div 
-                  className={`text-center py-1 rounded-tr-xl border-l-2 border-white ${
-                    currentCategoryScore > Math.floor(currentCategoryMaxScore * 0.8)
-                      ? 'bg-[#2BD473] text-white' 
-                      : 'bg-[#E8E8E8] text-gray-800'
-                  }`}
+                <div
+                  className={`text-center py-1 rounded-tr-xl border-l-2 border-white ${currentCategoryScore > Math.floor(currentCategoryMaxScore * 0.8)
+                    ? 'bg-[#2BD473] text-white'
+                    : 'bg-[#E8E8E8] text-gray-800'
+                    }`}
                 >
                   <h3 className="text-base font-semibold">Score: {Math.floor(currentCategoryMaxScore * 0.8) + 1} - {currentCategoryMaxScore}</h3>
                 </div>
                 <div className="mt-3 border-l-2 border-gray-200">
                   <p className="text-sm px-4 text-gray-700 leading-relaxed">
-                  This score range demonstrates excellent performance and strong compliance. The category shows outstanding results with well-established processes and best practices in place.
+                    This score range demonstrates excellent performance and strong compliance. The category shows outstanding results with well-established processes and best practices in place.
                   </p>
                 </div>
               </div>
@@ -744,7 +740,7 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                 {/* Score indicator circle */}
                 <div
                   className="absolute transition-all duration-500 z-30"
-                  style={{ 
+                  style={{
                     left: `${Math.min((currentCategoryScore / currentCategoryMaxScore) * 100, 100)}%`,
                     top: '50%',
                     transform: 'translate(-50%, -50%)'
@@ -760,7 +756,7 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
             </div>
           )}
 
-         
+
         </div>
       </main>
     </div>
