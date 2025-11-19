@@ -91,6 +91,7 @@ model Presentation {
   summary    Summary?
   invitations Invitation[]
   sharedWith SharedAudit[]
+  auditProgress AuditProgress?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -162,6 +163,18 @@ model Test {
   createdAt      DateTime        @default(now())
 
   @@map("tests")
+}
+
+model AuditProgress {
+  id             String        @id @default(cuid())
+  presentationId String        @unique
+  presentation   Presentation  @relation(fields: [presentationId], references: [id], onDelete: Cascade)
+  answers        Json          @default("{}")
+  updatedBy      String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@map("audit_progress")
 }
 
 model Answer {

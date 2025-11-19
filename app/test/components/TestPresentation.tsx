@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAudit, useTestQuestions, useSubmitTest } from "@/lib/hooks";
+import { useAudit, useAuditProgress, useTestQuestions, useSubmitTest } from "@/lib/hooks";
 import { useUser } from "@/contexts/UserContext";
 import toast from "react-hot-toast";
 import TableSkeleton from "../../add-new-audit/components/tableSkeleton";
@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { apiClient } from "@/lib/fetcher";
 
 export default function TestPresentation() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function TestPresentation() {
 
   const { data: auditData, isLoading: auditLoading, error: auditError } = useAudit(presentationId);
   const { data: questionsData, isLoading: questionsLoading, error: questionsError } = useTestQuestions(presentationId);
+  const { data: progressData, isLoading: progressLoading, error: progressError } = useAuditProgress(presentationId);
   const submitTestMutation = useSubmitTest();
 
   // Get summary data from audit data (summary is included in the API response)
@@ -31,28 +33,8 @@ export default function TestPresentation() {
     ? (auditData as Presentation & { summary?: { categoryRecommendations?: string | Array<{ categoryId: string; recommendation: string }>; nextSteps?: string | Array<{ type: string; content: string; fileUrl?: string }>; overallDetails?: string | null } | null })?.summary || null
     : null;
 
-  // Load answers from localStorage on mount
-  const [answers, setAnswers] = useState<Record<string, string>>(() => {
-    if (typeof window === 'undefined' || !presentationId) return {};
-    try {
-      const savedAnswers = localStorage.getItem(`testAnswers:${presentationId}`);
-      return savedAnswers ? JSON.parse(savedAnswers) : {};
-    } catch (error) {
-      console.error("Error loading answers from localStorage:", error);
-      return {};
-    }
-  }); // questionId -> optionId
-
-  const [categoryScores, setCategoryScores] = useState<Record<string, number>>(() => {
-    if (typeof window === 'undefined' || !presentationId) return {};
-    try {
-      const savedScores = localStorage.getItem(`testCategoryScores:${presentationId}`);
-      return savedScores ? JSON.parse(savedScores) : {};
-    } catch (error) {
-      console.error("Error loading category scores from localStorage:", error);
-      return {};
-    }
-  }); // categoryId -> total score
+  const [answers, setAnswers] = useState<Record<string, string>>({}); // questionId -> optionId
+  const [categoryScores, setCategoryScores] = useState<Record<string, number>>({}); // categoryId -> total score
 
   const primaryColor = user?.primaryColor || '#2B4055';
 
@@ -113,7 +95,7 @@ export default function TestPresentation() {
     }
   };
 
-  // Handle routing and category parameter
+  // Ensure valid presentation and category param
   useEffect(() => {
     if (!presentationId) {
       toast.error("Presentation ID is missing");
@@ -121,35 +103,19 @@ export default function TestPresentation() {
       return;
     }
 
-    // Ensure category parameter is in URL
-    if (!searchParams.get('category')) {
+    if (!searchParams.get("category")) {
       router.replace(`/test?presentationId=${presentationId}&category=1`);
-      return;
-    }
-
-    // Reload answers from localStorage when presentationId changes
-    if (typeof window !== 'undefined' && presentationId) {
-      try {
-        const savedAnswers = localStorage.getItem(`testAnswers:${presentationId}`);
-        if (savedAnswers) {
-          setAnswers(JSON.parse(savedAnswers));
-        } else {
-          setAnswers({});
-        }
-
-        const savedScores = localStorage.getItem(`testCategoryScores:${presentationId}`);
-        if (savedScores) {
-          setCategoryScores(JSON.parse(savedScores));
-        } else {
-          setCategoryScores({});
-        }
-      } catch (error) {
-        console.error("Error loading test data from localStorage:", error);
-        setAnswers({});
-        setCategoryScores({});
-      }
     }
   }, [presentationId, router, searchParams]);
+
+  // Populate answers from saved progress
+  useEffect(() => {
+    if (progressData?.answers) {
+      setAnswers(progressData.answers);
+    } else if (progressData && !progressData.answers) {
+      setAnswers({});
+    }
+  }, [progressData]);
 
   // Store category names, icons and audit data in sessionStorage when audit data is loaded
   useEffect(() => {
@@ -207,28 +173,6 @@ export default function TestPresentation() {
     }
   }, [summaryData]);
 
-  // Save answers to localStorage whenever they change
-  useEffect(() => {
-    if (typeof window !== 'undefined' && presentationId && Object.keys(answers).length > 0) {
-      try {
-        localStorage.setItem(`testAnswers:${presentationId}`, JSON.stringify(answers));
-      } catch (error) {
-        console.error("Error saving answers to localStorage:", error);
-      }
-    }
-  }, [answers, presentationId]);
-
-  // Save category scores to localStorage whenever they change
-  useEffect(() => {
-    if (typeof window !== 'undefined' && presentationId && Object.keys(categoryScores).length > 0) {
-      try {
-        localStorage.setItem(`testCategoryScores:${presentationId}`, JSON.stringify(categoryScores));
-      } catch (error) {
-        console.error("Error saving category scores to localStorage:", error);
-      }
-    }
-  }, [categoryScores, presentationId]);
-
   // Handle errors
   useEffect(() => {
     if (auditError || questionsError) {
@@ -237,7 +181,16 @@ export default function TestPresentation() {
     }
   }, [auditError, questionsError, router]);
 
-  const loading = auditLoading || questionsLoading;
+  useEffect(() => {
+    if (progressError) {
+      const message =
+        (progressError as { message?: string })?.message ||
+        "Failed to load saved progress";
+      toast.error(message);
+    }
+  }, [progressError]);
+
+  const loading = auditLoading || questionsLoading || progressLoading;
   const presentation = auditData || null;
 
   // Memoize questions to prevent unnecessary re-renders
@@ -281,11 +234,29 @@ export default function TestPresentation() {
     });
   }, [answers]);
 
+  const saveProgress = useCallback(
+    async (nextAnswers: Record<string, string>) => {
+      if (!presentationId) return;
+      try {
+        await apiClient.post(`/test/progress/${presentationId}`, {
+          answers: nextAnswers,
+        });
+      } catch (error) {
+        console.error("Error saving progress:", error);
+      }
+    },
+    [presentationId]
+  );
+
   const handleAnswerChange = (questionId: string, optionId: string) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: optionId
-    }));
+    setAnswers((prev) => {
+      const next = {
+        ...prev,
+        [questionId]: optionId,
+      };
+      void saveProgress(next);
+      return next;
+    });
   };
 
   // Note: handleSubmit is kept for potential future use or manual submission
@@ -312,15 +283,9 @@ export default function TestPresentation() {
         answers: answerArray
       });
 
-      // Clear localStorage after successful submission
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.removeItem(`testAnswers:${presentationId}`);
-          localStorage.removeItem(`testCategoryScores:${presentationId}`);
-        } catch (error) {
-          console.error("Error clearing localStorage:", error);
-        }
-      }
+      await saveProgress({});
+      setAnswers({});
+      setCategoryScores({});
 
       toast.success("Audit submitted successfully!");
       router.push(`/test/result?testId=${result.testId}`);
@@ -566,7 +531,7 @@ export default function TestPresentation() {
                         <span className="text-gray-700">{index + 1}</span>
                       </td>
                       <td className=" px-4  align-middle border-r border-[#E8E8E8] w-full">
-                        <div className="w-full  px-4 h-[3vh] border-[#E8E8E8] rounded-xl flex items-center">
+                        <div className="w-full  px-4 border-[#E8E8E8] rounded-xl flex items-center">
                           <span className="text-gray-900">{question.text}</span>
                         </div>
                       </td>
@@ -577,7 +542,7 @@ export default function TestPresentation() {
                             onValueChange={(value) => handleAnswerChange(question.id, value)}
                           >
                             <SelectTrigger
-                              className="w-[30vw] h-[2.6vh] my-2 text-sm font-normal text-gray-700 ring-0 outline-none focus:ring-0 focus:ring-offset-0 bg-[#E8E8E8] border-none rounded-md [&>svg]:hidden px-3 pr-10"
+                              className="w-[30vw]  h-[2.6vh] text-sm font-normal text-gray-700 ring-0 outline-none focus:ring-0 focus:ring-offset-0 bg-[#E8E8E8] border-none rounded-md [&>svg]:hidden px-3 pr-10"
                               data-question-id={question.id}
                             >
                               <SelectValue
