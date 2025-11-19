@@ -59,6 +59,7 @@ export default function Sidebar() {
 
   // Get user's primary color with opacity
   const primaryColor = user?.primaryColor || '#2B4055';
+  const secondaryColor = user?.secondaryColor || '#F7AF41';
   const primaryColorWithOpacity = hexToRgba(primaryColor, 0.90); // 80% opacity for background
   const primaryColorOverlay = hexToRgba(primaryColor, 0.70); // 70% opacity for BackgroundWrapper-style overlay
 
@@ -781,7 +782,7 @@ export default function Sidebar() {
           <Image 
             onClick={() => router.push('/')}
             className="cursor-pointer"
-            src={logo} 
+            src={user?.company?.logoUrl || logo} 
             alt="Logo" 
             width={168} 
             height={60} 
@@ -838,7 +839,7 @@ export default function Sidebar() {
         ) : (
           <>
             {(onNewAuditPage || onUpdateAuditPage || onSummaryPage || onTestPage) && !onMainPage && (
-              <div className="px-4 text-center font-medium text-[#fffef7]">
+              <div className="px-4 mb-3 text-center font-medium text-[#fffef7]">
                 ALL AUDITS
               </div>
             )}
@@ -877,21 +878,21 @@ export default function Sidebar() {
           
           if (useSecondary) {
             // Create/Update pages: use secondary styling
-            backgroundColor = primaryColorWithOpacity;
-            textColor = isActive ? 'white' : '#ffffff80';
+            backgroundColor =isActive ? "white": secondaryColor;
+            textColor = isActive ? 'black' : 'white';
           } else if (isTestPageCategory) {
             // Test page: active = white, inactive = primary with opacity
-            backgroundColor = isActive ? 'white' : hexToRgba(primaryColor, 0.9);
+            backgroundColor = isActive ? 'white' : secondaryColor;
             textColor = isActive ? 'black' : 'white';
           } else if (isNavigationItem && !isActive) {
             // Navigation items (ALL AUDITS, ALL TEAM MEMBERS) when inactive: match category button style
             // Use primary color with opacity background and white text (like category buttons on create/update pages)
-            backgroundColor = primaryColorWithOpacity;
-            textColor = '#ffffff80';
+            backgroundColor = secondaryColor;
+            textColor = 'white';
           } else {
             // Default: white background
             backgroundColor = 'white';
-            textColor = isActive ? 'black' : primaryColor;
+            textColor = isActive ? 'black' : secondaryColor;
           }
           
           const isDragging = isCategoryItem && itemCategoryNumber !== null && draggedCategoryIndex === (itemCategoryNumber - 1);
@@ -925,7 +926,7 @@ export default function Sidebar() {
                 backgroundColor: backgroundColor,
                 color: textColor,
                 border: (useSecondary ? '2px solid ##899AA9' : 'none'),
-              }}
+              }}  
             >
               {isEditing && itemCategoryNumber !== null ? (
                 <input
@@ -1048,19 +1049,19 @@ export default function Sidebar() {
                           console.log('Navigation blocked:', { isEditing, isSummaryItem, itemCategoryNumber, editingIconCategory });
                         }
                       }}
-                      className="flex-1 h-full cursor-pointer flex items-center gap-2 text-left text-nowrap overflow-hidden text-ellipsis whitespace-nowrap"
-                      style={{ color: 'inherit' }}
+                      className={`flex-1 h-full cursor-pointer flex items-center gap-2 text-left text-nowrap overflow-hidden text-ellipsis whitespace-nowrap ${isActive ? 'active-nav-item' : ''}`}
+                      // style={{ color: 'inherit' }}
                     >
                       <span>{item.name}</span>
                     </button>
                   </div>
-            {isActive && <div>
+            {/* {isActive && <div>
             <div 
                 className='absolute -right-5 -top-[26.6px] border-r-4 h-4 w-4 rounded rounded-r-full rotate-45 font-bold overflow-hidden'
                 style={{ 
                   backgroundImage: 'url(/bg-img.png)',
                   backgroundSize: 'contain',
-                  borderColor: (onNewAuditPage || onUpdateAuditPage || onSummaryPage) ? primaryColor : 'white',
+                  borderColor: (onNewAuditPage || onUpdateAuditPage || onSummaryPage) ? secondaryColor : 'white',
                 }}
               >
                 <div 
@@ -1076,7 +1077,7 @@ export default function Sidebar() {
                 style={{ 
                   backgroundImage: 'url(/bg-img.png)',
                   backgroundSize: 'contain',
-                  borderColor: (onNewAuditPage || onUpdateAuditPage || onSummaryPage) ? primaryColor : 'white',
+                  borderColor: (onNewAuditPage || onUpdateAuditPage || onSummaryPage) ? secondaryColor : 'white',
                 }}
               >
                 <div 
@@ -1089,7 +1090,7 @@ export default function Sidebar() {
               </div>
             </div>
 
-            }
+            } */}
               
              {isCategoryItem && itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage) && (
                     <button

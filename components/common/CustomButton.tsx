@@ -25,7 +25,7 @@ export interface CustomButtonProps
 
 const variantToClass: Record<ButtonVariant, string> = {
   primary:
-    "text-black",
+    "text-black bg-[#F7AF41]",
   brand:
     "bg-[#F7B538] text-white hover:bg-[#F7AF41]",
   gray:
@@ -66,7 +66,7 @@ export default function CustomButton({
 
   // For primary variant, use secondary color from user context
   const primaryStyle = variant === "primary" 
-    ? { backgroundColor: secondaryColor, ...style }
+    ? { backgroundColor: "#F7AF41", ...style }
     : style;
 
   return (

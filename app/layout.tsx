@@ -28,12 +28,18 @@ export default async function RootLayout({
           <UserProvider user={session}>
             <ThemeProvider>
               <BackgroundWrapper>
-                <div className="flex min-h-screen h-screen">
-                  <Sidebar />
-                  <main className="flex-1 overflow-auto">
+                {session ? (
+                  <div className="flex min-h-screen h-screen">
+                    <Sidebar />
+                    <main className="flex-1 overflow-auto">
+                      {children}
+                    </main>
+                  </div>
+                ) : (
+                  <main className="min-h-screen">
                     {children}
                   </main>
-                </div>
+                )}
               </BackgroundWrapper>
               <Toaster 
                 position="top-right"

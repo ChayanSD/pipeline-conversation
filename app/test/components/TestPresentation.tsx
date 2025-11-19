@@ -5,9 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAudit, useTestQuestions, useSubmitTest } from "@/lib/hooks";
 import { useUser } from "@/contexts/UserContext";
 import toast from "react-hot-toast";
-import Image from "next/image";
 import TableSkeleton from "../../add-new-audit/components/tableSkeleton";
 import { Category, Presentation } from "@/lib/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function TestPresentation() {
   const router = useRouter();
@@ -47,7 +53,65 @@ export default function TestPresentation() {
       return {};
     }
   }); // categoryId -> total score
+  
   const primaryColor = user?.primaryColor || '#2B4055';
+
+  // Helper function to get background color based on option points (1-5)
+  // Matches the color pattern from UpdateAudit.tsx statusButtons
+  const getOptionBackgroundColor = (points: number): string => {
+    switch (points) {
+      case 1:
+        return '#FFE2E3'; // Very Minimal - pink/red (matches bg-[#FFE2E380])
+      case 2:
+        return '#FFFCE2'; // Just Starting - yellow (matches bg-[#FFFCE280])
+      case 3:
+        return '#FFDBC2'; // Good progress - orange (matches bg-[#FFDBC2B2])
+      case 4:
+        return '#DCFCE7'; // Excellent - green (matches bg-[#DCFCE7])
+      case 5:
+        return '#DCF3F6'; // Very Excellent - cyan/blue (matches bg-[#DCF3F6])
+      default:
+        return '#E8E8E8'; // Default gray
+    }
+  };
+
+  // Helper function to get text color based on option points (1-5)
+  // Matches the text color pattern from UpdateAudit.tsx statusButtons
+  const getOptionTextColor = (points: number): string => {
+    switch (points) {
+      case 1:
+        return '#9F1239'; // Very Minimal - pink-800
+      case 2:
+        return '#854D0E'; // Just Starting - yellow-800
+      case 3:
+        return '#9A3412'; // Good progress - orange-800
+      case 4:
+        return '#166534'; // Excellent - green-800
+      case 5:
+        return '#1E40AF'; // Very Excellent - blue-800
+      default:
+        return '#333333'; // Default dark gray
+    }
+  };
+
+  // Helper function to get border/icon color based on option points (1-5)
+  // Matches the border color pattern from UpdateAudit.tsx statusButtons
+  const getOptionColor = (points: number): string => {
+    switch (points) {
+      case 1:
+        return '#FFB7B9'; // Very Minimal - pink/red (matches border-[#FFB7B9])
+      case 2:
+        return '#E3D668'; // Just Starting - yellow (matches border-[#E3D668])
+      case 3:
+        return '#894B00'; // Good progress - orange (matches border-[#894B00E5])
+      case 4:
+        return '#016730'; // Excellent - green (matches border-[#01673099])
+      case 5:
+        return '#0EA5E9'; // Very Excellent - cyan/blue (matches bg-[#DCF3F6] theme)
+      default:
+        return '#E8E8E8'; // Default gray
+    }
+  };
 
   // Handle routing and category parameter
   useEffect(() => {
@@ -205,6 +269,17 @@ export default function TestPresentation() {
 
     setCategoryScores(scores);
   }, [answers, questions, presentation]);
+
+  // Ensure selected text is black in SelectValue
+  useEffect(() => {
+    const selectValues = document.querySelectorAll('[data-slot="select-value"]');
+    selectValues.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.textContent && htmlEl.textContent !== 'Select an option...') {
+        htmlEl.style.color = '#000000';
+      }
+    });
+  }, [answers]);
 
   const handleAnswerChange = (questionId: string, optionId: string) => {
     setAnswers(prev => ({
@@ -496,18 +571,72 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                         </div>
                       </td>
                       <td className="border-r  border-gray-300 px-4 align-middle">
-                        <select
-                          value={selectedOptionId || ''}
-                          onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                          className=" bg-[#E8E8E8] px-4 h-[2.8vh] w-[30vw] border-[#3b5163] rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value=""></option>
-                          {question.options.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.text}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="relative" data-question-id={question.id}>
+                          <Select
+                            value={selectedOptionId || undefined}
+                            onValueChange={(value) => handleAnswerChange(question.id, value)}
+                          >
+                            <SelectTrigger 
+                              className="w-[30vw] h-[2.6vh] my-2 text-black ring-0 outline-none  bg-[#E8E8E8] border-none rounded-lg [&>svg]:hidden "
+                              data-question-id={question.id}
+                            >
+                              <SelectValue 
+                                placeholder="" 
+                                className="text-black"
+                              />
+                            </SelectTrigger>
+                            <SelectContent className="bg-transparent border-none">
+                              {question.options.map((option) => {
+                                const backgroundColor = getOptionBackgroundColor(option.points);
+                                const textColor = getOptionTextColor(option.points);
+                                return (
+                                  <SelectItem
+                                    key={option.id}
+                                    value={option.id}
+                                    className="cursor-pointer rounded-sm"
+                                    style={{ 
+                                      backgroundColor: backgroundColor,
+                                      color: textColor,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      const target = e.currentTarget;
+                                      target.style.opacity = '1';
+                                      target.style.backgroundColor = backgroundColor;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      const target = e.currentTarget;
+                                      target.style.opacity = '1';
+                                      target.style.backgroundColor = backgroundColor;
+                                    }}
+                                    onFocus={(e) => {
+                                      e.currentTarget.style.backgroundColor = backgroundColor;
+                                    }}
+                                  >
+                                    <span style={{ color: textColor }}>{option.text}</span>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          <div
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded pointer-events-none"
+                            style={{
+                              backgroundColor: selectedOption ? getOptionColor(selectedOption.points) : '#E8E8E8',
+                            }}
+                          >
+                            <svg
+                              className="w-4 h-4"
+                              style={{
+                                color: selectedOption ? 'white' : '#333',
+                              }}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-2 text-center align-middle w-16">
                         <span className={`px-3 rounded text-sm font-medium text-gray-900`}>
