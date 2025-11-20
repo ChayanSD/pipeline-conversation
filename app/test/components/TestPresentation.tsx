@@ -1,13 +1,22 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAudit, useTestQuestions, useSubmitTest } from "@/lib/hooks";
+import { useAudit, useAuditProgress, useTestQuestions, useSubmitTest } from "@/lib/hooks";
 import { useUser } from "@/contexts/UserContext";
 import toast from "react-hot-toast";
-import Image from "next/image";
 import TableSkeleton from "../../add-new-audit/components/tableSkeleton";
 import { Category, Presentation } from "@/lib/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { apiClient } from "@/lib/fetcher";
+import { useQueryClient } from "@tanstack/react-query";
+import { auditKeys } from "@/lib/hooks/useAudit";
 
 export default function TestPresentation() {
   const router = useRouter();
@@ -15,41 +24,81 @@ export default function TestPresentation() {
   const presentationId = searchParams.get('presentationId');
   const currentCategory = parseInt(searchParams.get('category') || '1', 10);
   const { user } = useUser();
-  
+
   const { data: auditData, isLoading: auditLoading, error: auditError } = useAudit(presentationId);
   const { data: questionsData, isLoading: questionsLoading, error: questionsError } = useTestQuestions(presentationId);
+  const { data: progressData, isLoading: progressLoading, error: progressError } = useAuditProgress(presentationId);
   const submitTestMutation = useSubmitTest();
-  
+  const queryClient = useQueryClient();
+
   // Get summary data from audit data (summary is included in the API response)
-  const summaryData = auditData && 'summary' in auditData 
+  const summaryData = auditData && 'summary' in auditData
     ? (auditData as Presentation & { summary?: { categoryRecommendations?: string | Array<{ categoryId: string; recommendation: string }>; nextSteps?: string | Array<{ type: string; content: string; fileUrl?: string }>; overallDetails?: string | null } | null })?.summary || null
     : null;
-  
-  // Load answers from localStorage on mount
-  const [answers, setAnswers] = useState<Record<string, string>>(() => {
-    if (typeof window === 'undefined' || !presentationId) return {};
-    try {
-      const savedAnswers = localStorage.getItem(`testAnswers:${presentationId}`);
-      return savedAnswers ? JSON.parse(savedAnswers) : {};
-    } catch (error) {
-      console.error("Error loading answers from localStorage:", error);
-      return {};
-    }
-  }); // questionId -> optionId
-  
-  const [categoryScores, setCategoryScores] = useState<Record<string, number>>(() => {
-    if (typeof window === 'undefined' || !presentationId) return {};
-    try {
-      const savedScores = localStorage.getItem(`testCategoryScores:${presentationId}`);
-      return savedScores ? JSON.parse(savedScores) : {};
-    } catch (error) {
-      console.error("Error loading category scores from localStorage:", error);
-      return {};
-    }
-  }); // categoryId -> total score
+
+  const [answers, setAnswers] = useState<Record<string, string>>({}); // questionId -> optionId
+  const [categoryScores, setCategoryScores] = useState<Record<string, number>>({}); // categoryId -> total score
+
   const primaryColor = user?.primaryColor || '#2B4055';
 
-  // Handle routing and category parameter
+  // Helper function to get background color based on option points (1-5)
+  // Matches the color pattern from UpdateAudit.tsx statusButtons
+  const getOptionBackgroundColor = (points: number): string => {
+    switch (points) {
+      case 1:
+        return '#FFE2E3'; // Very Minimal - pink/red (matches bg-[#FFE2E380])
+      case 2:
+        return '#FFFCE2'; // Just Starting - yellow (matches bg-[#FFFCE280])
+      case 3:
+        return '#FFDBC2'; // Good progress - orange (matches bg-[#FFDBC2B2])
+      case 4:
+        return '#DCFCE7'; // Excellent - green (matches bg-[#DCFCE7])
+      case 5:
+        return '#DCF3F6'; // Very Excellent - cyan/blue (matches bg-[#DCF3F6])
+      default:
+        return '#E8E8E8'; // Default gray
+    }
+  };
+
+  // Helper function to get text color based on option points (1-5)
+  // Matches the text color pattern from UpdateAudit.tsx statusButtons
+  const getOptionTextColor = (points: number): string => {
+    switch (points) {
+      case 1:
+        return '#9F1239'; // Very Minimal - pink-800
+      case 2:
+        return '#854D0E'; // Just Starting - yellow-800
+      case 3:
+        return '#9A3412'; // Good progress - orange-800
+      case 4:
+        return '#166534'; // Excellent - green-800
+      case 5:
+        return '#1E40AF'; // Very Excellent - blue-800
+      default:
+        return '#333333'; // Default dark gray
+    }
+  };
+
+  // Helper function to get border/icon color based on option points (1-5)
+  // Matches the border color pattern from UpdateAudit.tsx statusButtons
+  const getOptionColor = (points: number): string => {
+    switch (points) {
+      case 1:
+        return '#FFB7B9'; // Very Minimal - pink/red (matches border-[#FFB7B9])
+      case 2:
+        return '#E3D668'; // Just Starting - yellow (matches border-[#E3D668])
+      case 3:
+        return '#894B00'; // Good progress - orange (matches border-[#894B00E5])
+      case 4:
+        return '#016730'; // Excellent - green (matches border-[#01673099])
+      case 5:
+        return '#0EA5E9'; // Very Excellent - cyan/blue (matches bg-[#DCF3F6] theme)
+      default:
+        return '#E8E8E8'; // Default gray
+    }
+  };
+
+  // Ensure valid presentation and category param
   useEffect(() => {
     if (!presentationId) {
       toast.error("Presentation ID is missing");
@@ -57,35 +106,19 @@ export default function TestPresentation() {
       return;
     }
 
-    // Ensure category parameter is in URL
-    if (!searchParams.get('category')) {
+    if (!searchParams.get("category")) {
       router.replace(`/test?presentationId=${presentationId}&category=1`);
-      return;
-    }
-
-    // Reload answers from localStorage when presentationId changes
-    if (typeof window !== 'undefined' && presentationId) {
-      try {
-        const savedAnswers = localStorage.getItem(`testAnswers:${presentationId}`);
-        if (savedAnswers) {
-          setAnswers(JSON.parse(savedAnswers));
-        } else {
-          setAnswers({});
-        }
-        
-        const savedScores = localStorage.getItem(`testCategoryScores:${presentationId}`);
-        if (savedScores) {
-          setCategoryScores(JSON.parse(savedScores));
-        } else {
-          setCategoryScores({});
-        }
-      } catch (error) {
-        console.error("Error loading test data from localStorage:", error);
-        setAnswers({});
-        setCategoryScores({});
-      }
     }
   }, [presentationId, router, searchParams]);
+
+  // Populate answers from saved progress
+  useEffect(() => {
+    if (progressData?.answers) {
+      setAnswers(progressData.answers);
+    } else if (progressData && !progressData.answers) {
+      setAnswers({});
+    }
+  }, [progressData]);
 
   // Store category names, icons and audit data in sessionStorage when audit data is loaded
   useEffect(() => {
@@ -100,7 +133,7 @@ export default function TestPresentation() {
           sessionStorage.setItem(`auditData:categoryIcon:${categoryNumber}`, category.icon);
         }
       });
-      
+
       // Store audit data structure for sidebar to count categories
       const auditDataForStorage = {
         id: auditData.id,
@@ -113,7 +146,7 @@ export default function TestPresentation() {
         })),
       };
       sessionStorage.setItem('auditData', JSON.stringify(auditDataForStorage));
-      
+
       // Dispatch event to update sidebar
       window.dispatchEvent(new Event('categoryNameUpdated'));
     }
@@ -126,13 +159,13 @@ export default function TestPresentation() {
         const summaryToStore = {
           categoryRecommendations: summaryData.categoryRecommendations
             ? (typeof summaryData.categoryRecommendations === 'string'
-                ? JSON.parse(summaryData.categoryRecommendations)
-                : summaryData.categoryRecommendations)
+              ? JSON.parse(summaryData.categoryRecommendations)
+              : summaryData.categoryRecommendations)
             : [],
           nextSteps: summaryData.nextSteps
             ? (typeof summaryData.nextSteps === 'string'
-                ? JSON.parse(summaryData.nextSteps)
-                : summaryData.nextSteps)
+              ? JSON.parse(summaryData.nextSteps)
+              : summaryData.nextSteps)
             : [],
           overallDetails: summaryData.overallDetails || "",
         };
@@ -143,28 +176,6 @@ export default function TestPresentation() {
     }
   }, [summaryData]);
 
-  // Save answers to localStorage whenever they change
-  useEffect(() => {
-    if (typeof window !== 'undefined' && presentationId && Object.keys(answers).length > 0) {
-      try {
-        localStorage.setItem(`testAnswers:${presentationId}`, JSON.stringify(answers));
-      } catch (error) {
-        console.error("Error saving answers to localStorage:", error);
-      }
-    }
-  }, [answers, presentationId]);
-
-  // Save category scores to localStorage whenever they change
-  useEffect(() => {
-    if (typeof window !== 'undefined' && presentationId && Object.keys(categoryScores).length > 0) {
-      try {
-        localStorage.setItem(`testCategoryScores:${presentationId}`, JSON.stringify(categoryScores));
-      } catch (error) {
-        console.error("Error saving category scores to localStorage:", error);
-      }
-    }
-  }, [categoryScores, presentationId]);
-
   // Handle errors
   useEffect(() => {
     if (auditError || questionsError) {
@@ -173,9 +184,33 @@ export default function TestPresentation() {
     }
   }, [auditError, questionsError, router]);
 
-  const loading = auditLoading || questionsLoading;
+  useEffect(() => {
+    if (progressError) {
+      const message =
+        (progressError as { message?: string })?.message ||
+        "Failed to load saved progress";
+      toast.error(message);
+    }
+  }, [progressError]);
+
+  const loading = auditLoading || questionsLoading || progressLoading;
   const presentation = auditData || null;
-  
+
+  // Share loading state with sidebar so it can show skeletons
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem('testSidebarLoading', loading ? 'true' : 'false');
+    window.dispatchEvent(new Event('testSidebarLoadingChanged'));
+  }, [loading]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    return () => {
+      sessionStorage.setItem('testSidebarLoading', 'false');
+      window.dispatchEvent(new Event('testSidebarLoadingChanged'));
+    };
+  }, []);
+
   // Memoize questions to prevent unnecessary re-renders
   const questions = useMemo(() => questionsData || [], [questionsData]);
 
@@ -206,11 +241,40 @@ export default function TestPresentation() {
     setCategoryScores(scores);
   }, [answers, questions, presentation]);
 
+  // Ensure selected text is black in SelectValue
+  useEffect(() => {
+    const selectValues = document.querySelectorAll('[data-slot="select-value"]');
+    selectValues.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.textContent && htmlEl.textContent !== 'Select an option...') {
+        htmlEl.style.color = '#000000';
+      }
+    });
+  }, [answers]);
+
+  const saveProgress = useCallback(
+    async (nextAnswers: Record<string, string>) => {
+      if (!presentationId) return;
+      try {
+        await apiClient.post(`/test/progress/${presentationId}`, {
+          answers: nextAnswers,
+        });
+      } catch (error) {
+        console.error("Error saving progress:", error);
+      }
+    },
+    [presentationId]
+  );
+
   const handleAnswerChange = (questionId: string, optionId: string) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: optionId
-    }));
+    setAnswers((prev) => {
+      const next = {
+        ...prev,
+        [questionId]: optionId,
+      };
+      void saveProgress(next);
+      return next;
+    });
   };
 
   // Note: handleSubmit is kept for potential future use or manual submission
@@ -237,15 +301,9 @@ export default function TestPresentation() {
         answers: answerArray
       });
 
-      // Clear localStorage after successful submission
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.removeItem(`testAnswers:${presentationId}`);
-          localStorage.removeItem(`testCategoryScores:${presentationId}`);
-        } catch (error) {
-          console.error("Error clearing localStorage:", error);
-        }
-      }
+      await saveProgress({});
+      setAnswers({});
+      setCategoryScores({});
 
       toast.success("Audit submitted successfully!");
       router.push(`/test/result?testId=${result.testId}`);
@@ -268,7 +326,7 @@ export default function TestPresentation() {
   // Get current category and its score
   const currentCategoryData = presentation?.categories[currentCategory - 1];
   const currentCategoryScore = currentCategoryData ? (categoryScores[currentCategoryData.id] || 0) : 0;
-  
+
   // Calculate max score for current category
   const getCategoryMaxScore = (categoryId: string): number => {
     if (!questions.length) return 0;
@@ -301,9 +359,9 @@ export default function TestPresentation() {
     return (
       <div className="flex flex-col items-center">
         <div className="relative" style={{ width: `${size}px`, height: `${size}px` }}>
-          <svg 
-            className="transform -rotate-90" 
-            width={size} 
+          <svg
+            className="transform -rotate-90"
+            width={size}
             height={size}
             style={{ width: `${size}px`, height: `${size}px` }}
           >
@@ -346,9 +404,9 @@ export default function TestPresentation() {
       </div>
     );
   };
-const filteredCategories = (categories: Presentation['categories']): Category[] => {
-  return categories.filter((category: Category) => category.name.toLowerCase() !== 'summary');
-};
+  const filteredCategories = (categories: Presentation['categories']): Category[] => {
+    return categories.filter((category: Category) => category.name.toLowerCase() !== 'summary');
+  };
 
   return (
     <div className="h-screen flex flex-col">
@@ -369,66 +427,87 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
               );
             })}
             {/* Summary Icon */}
-            <div 
+            <div
               className="flex flex-col items-center ml-4 cursor-pointer"
-              onClick={() => {
-                if (typeof window !== 'undefined' && presentationId && presentation) {
-                  // Calculate current scores from answers
-                  const scores: Record<string, number> = {};
-                  presentation.categories.forEach(cat => {
-                    scores[cat.id] = 0;
-                  });
+              onClick={async () => {
+                if (typeof window !== 'undefined' && presentationId && presentation && user) {
+                  try {
+                    // Calculate current scores from answers
+                    const scores: Record<string, number> = {};
+                    presentation.categories.forEach(cat => {
+                      scores[cat.id] = 0;
+                    });
 
-                  questions.forEach(q => {
-                    const selectedOptionId = answers[q.id];
-                    if (selectedOptionId) {
-                      const option = q.options.find(opt => opt.id === selectedOptionId);
-                      if (option) {
-                        const catId = q.category.id;
-                        scores[catId] = (scores[catId] || 0) + option.points;
+                    questions.forEach(q => {
+                      const selectedOptionId = answers[q.id];
+                      if (selectedOptionId) {
+                        const option = q.options.find(opt => opt.id === selectedOptionId);
+                        if (option) {
+                          const catId = q.category.id;
+                          scores[catId] = (scores[catId] || 0) + option.points;
+                        }
                       }
-                    }
-                  });
+                    });
 
-                  // Filter out summary category
-                  const nonSummaryCategories = presentation.categories.filter(
-                    cat => cat.name.toLowerCase() !== 'summary'
-                  );
+                    // Filter out summary category
+                    const nonSummaryCategories = presentation.categories.filter(
+                      cat => cat.name.toLowerCase() !== 'summary'
+                    );
 
-                  // Calculate total score (excluding summary)
-                  const totalScore = nonSummaryCategories.reduce((sum, cat) => {
-                    return sum + (scores[cat.id] || 0);
-                  }, 0);
+                    // Calculate total score (excluding summary)
+                    const totalScore = nonSummaryCategories.reduce((sum, cat) => {
+                      return sum + (scores[cat.id] || 0);
+                    }, 0);
 
-                  // Store category names and scores in sessionStorage (excluding summary)
-                  const testResultData = {
-                    totalScore,
-                    categoryScores: nonSummaryCategories.map(cat => {
-                      const categoryQuestions = questions.filter(q => q.category.id === cat.id);
-                      return {
-                        categoryId: cat.id,
-                        categoryName: cat.name,
-                        score: scores[cat.id] || 0,
-                        maxScore: categoryQuestions.length * 5,
-                      };
-                    }),
-                  };
-                  sessionStorage.setItem('testResultData', JSON.stringify(testResultData));
-                  
-                  // Store category names
-                  presentation.categories.forEach((category, index) => {
-                    const categoryNumber = index + 1;
-                    if (category.name) {
-                      sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, category.name);
-                    }
-                  });
+                    // Prepare category scores for API
+                    const categoryScoresForAPI = nonSummaryCategories.map(cat => ({
+                      categoryId: cat.id,
+                      score: scores[cat.id] || 0,
+                    }));
 
-                  // Dispatch events to update sidebar
-                  window.dispatchEvent(new Event('categoryNameUpdated'));
-                  window.dispatchEvent(new Event('testResultUpdated'));
+                    // Update test score in database
+                    await apiClient.post('/test/update-score', {
+                      presentationId,
+                      totalScore,
+                      categoryScores: categoryScoresForAPI,
+                    });
 
-                  // Navigate to result page
-                  router.push(`/test/result?presentationId=${presentationId}`);
+                    // Invalidate audits query to refresh the main page with updated score
+                    queryClient.invalidateQueries({ queryKey: auditKeys.lists() });
+
+                    // Store category names and scores in sessionStorage (excluding summary)
+                    const testResultData = {
+                      totalScore,
+                      categoryScores: nonSummaryCategories.map(cat => {
+                        const categoryQuestions = questions.filter(q => q.category.id === cat.id);
+                        return {
+                          categoryId: cat.id,
+                          categoryName: cat.name,
+                          score: scores[cat.id] || 0,
+                          maxScore: categoryQuestions.length * 5,
+                        };
+                      }),
+                    };
+                    sessionStorage.setItem('testResultData', JSON.stringify(testResultData));
+
+                    // Store category names
+                    presentation.categories.forEach((category, index) => {
+                      const categoryNumber = index + 1;
+                      if (category.name) {
+                        sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, category.name);
+                      }
+                    });
+
+                    // Dispatch events to update sidebar
+                    window.dispatchEvent(new Event('categoryNameUpdated'));
+                    window.dispatchEvent(new Event('testResultUpdated'));
+
+                    // Navigate to result page
+                    router.push(`/test/result?presentationId=${presentationId}`);
+                  } catch (error) {
+                    console.error("Error updating test score:", error);
+                    toast.error("Failed to update test score. Please try again.");
+                  }
                 }
               }}
             >
@@ -464,16 +543,16 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
             </p>
           </div>
         </div>
-       
-     
-          <div className="px-24 flex items-center justify-between">
-            {["questions", "answers", "score"].map((item,i) => (
-              <p key={i} className={`text-[22px] text-white capitalize font-500 tracking-[0.352px] leading-normal font-medium ${i === 1 ? "ml-56":""}`}>
-                {item}
-              </p>
-            ))}
-          </div>
-       
+
+
+        <div className="px-24 flex items-center justify-between">
+          {["questions", "answers", "score"].map((item, i) => (
+            <p key={i} className={`text-[22px] text-white capitalize font-500 tracking-[0.352px] leading-normal font-medium ${i === 1 ? "ml-56" : ""}`}>
+              {item}
+            </p>
+          ))}
+        </div>
+
       </header>
       <main className="px-24 pt-3 bg-white flex-1 pb-10 overflow-y-auto">
         <div className="">
@@ -484,32 +563,85 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                   const selectedOptionId = answers[question.id];
                   const selectedOption = question.options.find(opt => opt.id === selectedOptionId);
                   const score = selectedOption ? selectedOption.points : 0;
-                  
+
                   return (
                     <tr key={question.id} className="border-b border-r border-[#E8E8E8]">
                       <td className="border-r border-gray-300 px-4  text-center align-middle w-16">
                         <span className="text-gray-700">{index + 1}</span>
                       </td>
                       <td className=" px-4  align-middle border-r border-[#E8E8E8] w-full">
-                        <div className="w-full  px-4 h-[3vh] border-[#E8E8E8] rounded-xl flex items-center">
+                        <div className="w-full  px-4 border-[#E8E8E8] rounded-xl flex items-center">
                           <span className="text-gray-900">{question.text}</span>
                         </div>
                       </td>
-                      <td className="border-r  border-gray-300 px-4 align-middle">
-                        <select
-                          value={selectedOptionId || ''}
-                          onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                          className=" bg-[#E8E8E8] px-4 h-[2.8vh] w-[30vw] border-[#3b5163] rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value=""></option>
-                          {question.options.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.text}
-                            </option>
-                          ))}
-                        </select>
+                      <td className="border-r border-gray-300 px-4 align-middle">
+                        <div className="relative py-1" data-question-id={question.id}>
+                          <Select
+                            value={selectedOptionId || undefined}
+                            onValueChange={(value) => handleAnswerChange(question.id, value)}
+                          >
+                            <SelectTrigger
+                              className="w-[30vw] text-sm font-normal text-gray-700 ring-0 outline-none focus:ring-0 focus:ring-offset-0 bg-[#E8E8E8] border-none rounded-md [&>svg]:hidden px-3 pr-10"
+                              data-question-id={question.id}
+                            >
+                              <SelectValue
+                                placeholder=""
+                                className="text-gray-700 font-normal"
+                              />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-md">
+                              {question.options.map((option) => {
+                                const backgroundColor = getOptionBackgroundColor(option.points);
+                                const textColor = getOptionTextColor(option.points);
+                                return (
+                                  <SelectItem
+                                    key={option.id}
+                                    value={option.id}
+                                    className="cursor-pointer rounded-sm px-3 py-2 text-sm focus:outline-none"
+                                    style={{
+                                      backgroundColor: backgroundColor,
+                                      color: textColor,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      const target = e.currentTarget;
+                                      target.style.opacity = '0.9';
+                                      target.style.backgroundColor = backgroundColor;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      const target = e.currentTarget;
+                                      target.style.opacity = '1';
+                                      target.style.backgroundColor = backgroundColor;
+                                    }}
+                                    onFocus={(e) => {
+                                      e.currentTarget.style.backgroundColor = backgroundColor;
+                                    }}
+                                  >
+                                    <span style={{ color: textColor }}>{option.text}</span>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                          <div
+                            className="absolute right-0 top-1 h-[80%] w-11 flex items-center justify-center rounded-md pointer-events-none"
+                            style={{
+                              backgroundColor: selectedOption ? getOptionColor(selectedOption.points) : 'transparent',
+                            }}
+                          >
+                            <svg
+                              className="w-4 h-[9px] mt-1"
+                              style={{
+                                color: selectedOption ? 'white' : '#606060',
+                              }}
+                              fill="currentColor"
+                              viewBox="0 0 12 8"
+                            >
+                              <path d="M6 8L0 0h12L6 8z" />
+                            </svg>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-2 text-center align-middle w-16">
+                      <td className="px-4 text-center align-middle w-16">
                         <span className={`px-3 rounded text-sm font-medium text-gray-900`}>
                           {score > 0 ? score : '-'}
                         </span>
@@ -520,13 +652,13 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                 {/* Total Score Row */}
                 {currentCategoryData && (
                   <tr className=" border-r border-[#E8E8E8] ">
-                    <td className="border-r border-gray-300 px-4 py-1 text-center align-middle w-16">
+                    <td className="border-r border-gray-300 px-4 text-center align-middle w-16">
                     </td>
-                    <td className="px-4 py-2 align-middle border-r border-[#E8E8E8] w-full">
+                    <td className="px-4  align-middle border-r border-[#E8E8E8] w-full">
                     </td>
-                    <td className="border-r border-gray-300 px-4 py-1 align-middle">
-                      <div className="w-full px-4 h-[2.8vh] border-[#E8E8E8] rounded-xl flex items-center justify-end">
-                        <span className="text-gray-50 rounded-lg p-1 px-2 font-semibold " style={{backgroundColor: primaryColor}}>Total Score</span>
+                    <td className="border-r border-gray-300 px-4  align-middle">
+                      <div className="w-full px-4 border-[#E8E8E8] rounded-xl flex items-center justify-end">
+                        <span className="text-gray-50 rounded-lg p-1 px-2 font-semibold " style={{ backgroundColor: primaryColor }}>Total Score</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center align-middle w-16">
@@ -542,57 +674,54 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
 
           {/* Score Interpretation Blocks */}
           {currentCategoryData && currentCategoryMaxScore > 0 && (
-            <div className="mt-6 grid grid-cols-3 gap-0">
+            <div className="mt-2 grid grid-cols-3 gap-0">
               {/* Block 1: Low Score */}
               <div className="bg-white rounded-tl-xl  border-r-2  border-white ">
-                <div 
-                  className={`rounded-tl-xl text-center py-1 ${
-                    currentCategoryScore >= 1 && currentCategoryScore <= Math.floor(currentCategoryMaxScore * 0.4)
-                      ? 'bg-[#F65355] text-white' 
-                      : 'bg-[#E8E8E8] text-gray-800'
-                  }`}
+                <div
+                  className={`rounded-tl-xl text-center py-1 ${currentCategoryScore >= 1 && currentCategoryScore <= Math.floor(currentCategoryMaxScore * 0.4)
+                    ? 'bg-[#F65355] text-white'
+                    : 'bg-[#E8E8E8] text-gray-800'
+                    }`}
                 >
                   <h3 className="text-base font-semibold">Score: 1 - {Math.floor(currentCategoryMaxScore * 0.4)}</h3>
                 </div>
                 <div className="mt-3">
                   <p className="text-sm px-4 border-r-2 border-gray-200 text-gray-700 leading-relaxed">
-                  This score range indicates areas that require urgent attention and immediate improvement. Critical gaps have been identified that need to be addressed as a priority to enhance overall performance and compliance.
+                    This score range indicates areas that require urgent attention and immediate improvement. Critical gaps have been identified that need to be addressed as a priority to enhance overall performance and compliance.
                   </p>
                 </div>
               </div>
 
               {/* Block 2: Medium Score */}
               <div className="bg-white">
-                <div 
-                  className={`text-center py-1 ${
-                    currentCategoryScore > Math.floor(currentCategoryMaxScore * 0.4) && currentCategoryScore <= Math.floor(currentCategoryMaxScore * 0.8)
-                      ? 'bg-[#F7AF41] text-white' 
-                      : 'bg-[#E8E8E8] text-gray-800'
-                  }`}
+                <div
+                  className={`text-center py-1 ${currentCategoryScore > Math.floor(currentCategoryMaxScore * 0.4) && currentCategoryScore <= Math.floor(currentCategoryMaxScore * 0.8)
+                    ? 'bg-[#F7AF41] text-white'
+                    : 'bg-[#E8E8E8] text-gray-800'
+                    }`}
                 >
                   <h3 className="text-base font-semibold">Score: {Math.floor(currentCategoryMaxScore * 0.4) + 1} - {Math.floor(currentCategoryMaxScore * 0.8)}</h3>
                 </div>
                 <div className="mt-3">
                   <p className="text-sm px-4 text-gray-700 leading-relaxed">
-                  This score range represents average performance with room for enhancement. While basic standards are met, there are opportunities to strengthen processes and achieve better outcomes through targeted improvements.
-                    </p>
+                    This score range represents average performance with room for enhancement. While basic standards are met, there are opportunities to strengthen processes and achieve better outcomes through targeted improvements.
+                  </p>
                 </div>
               </div>
 
               {/* Block 3: High Score */}
               <div className="bg-white">
-                <div 
-                  className={`text-center py-1 rounded-tr-xl border-l-2 border-white ${
-                    currentCategoryScore > Math.floor(currentCategoryMaxScore * 0.8)
-                      ? 'bg-[#2BD473] text-white' 
-                      : 'bg-[#E8E8E8] text-gray-800'
-                  }`}
+                <div
+                  className={`text-center py-1 rounded-tr-xl border-l-2 border-white ${currentCategoryScore > Math.floor(currentCategoryMaxScore * 0.8)
+                    ? 'bg-[#2BD473] text-white'
+                    : 'bg-[#E8E8E8] text-gray-800'
+                    }`}
                 >
                   <h3 className="text-base font-semibold">Score: {Math.floor(currentCategoryMaxScore * 0.8) + 1} - {currentCategoryMaxScore}</h3>
                 </div>
                 <div className="mt-3 border-l-2 border-gray-200">
                   <p className="text-sm px-4 text-gray-700 leading-relaxed">
-                  This score range demonstrates excellent performance and strong compliance. The category shows outstanding results with well-established processes and best practices in place.
+                    This score range demonstrates excellent performance and strong compliance. The category shows outstanding results with well-established processes and best practices in place.
                   </p>
                 </div>
               </div>
@@ -601,7 +730,7 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
 
           {/* Category Score Progress Bar */}
           {currentCategoryData && currentCategoryMaxScore > 0 && (
-            <div className="mt-4 pt-2 px-4 pb-6 bg-[#D8DEE2] relative">
+            <div className="mt-2 pt-1 px-4 pb-5 bg-[#D8DEE2] relative">
               <h3 className="text-base font-semibold text-gray-800 mb-3 uppercase">
                 {currentCategoryData.name.toUpperCase()} SCORE ({currentCategoryScore} / {currentCategoryMaxScore})
               </h3>
@@ -615,7 +744,7 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
                 {/* Score indicator circle */}
                 <div
                   className="absolute transition-all duration-500 z-30"
-                  style={{ 
+                  style={{
                     left: `${Math.min((currentCategoryScore / currentCategoryMaxScore) * 100, 100)}%`,
                     top: '50%',
                     transform: 'translate(-50%, -50%)'
@@ -631,7 +760,7 @@ const filteredCategories = (categories: Presentation['categories']): Category[] 
             </div>
           )}
 
-         
+
         </div>
       </main>
     </div>

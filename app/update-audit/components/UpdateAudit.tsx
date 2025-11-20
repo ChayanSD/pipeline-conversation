@@ -15,6 +15,7 @@ type CategoryFormData = {
   id?: string;
   name: string;
   icon?: string;
+  recommendation?: string;
   questions: Array<{
     text: string;
     options: OptionState[];
@@ -45,7 +46,7 @@ export default function UpdateAudit() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [titleEditable, setTitleEditable] = useState(false);
-  const [sessionStorageCategories, setSessionStorageCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [sessionStorageCategories, setSessionStorageCategories] = useState<Array<{ id: string; name: string; recommendation?: string }>>([]);
   
   // Sync formData.summary with sessionStorage when it changes
   useEffect(() => {
@@ -254,6 +255,7 @@ export default function UpdateAudit() {
             categoriesForStorage.map((cat: CategoryFormData, idx: number) => ({
               id: cat.id || `temp-${idx}`,
               name: cat.name,
+              recommendation: cat.recommendation || "",
             }))
           );
         }
@@ -391,30 +393,58 @@ export default function UpdateAudit() {
               };
         }
 
+        const recommendationMap = new Map<string, string>();
+        if (summaryData?.categoryRecommendations) {
+          summaryData.categoryRecommendations.forEach(
+            (rec: { categoryId: string; recommendation: string }, index: number) => {
+              if (rec?.categoryId) {
+                recommendationMap.set(rec.categoryId, rec.recommendation || "");
+              } else {
+                recommendationMap.set(`position-${index}`, rec.recommendation || "");
+              }
+            }
+          );
+        }
+
+        const categoriesWithRecommendations = categories.map((cat, index) => ({
+          ...cat,
+          recommendation:
+            recommendationMap.get(cat.id || "") ??
+            recommendationMap.get(`position-${index}`) ??
+            "",
+        }));
+
         // Set form data
         setFormData({
           title: audit.title,
-          categories,
+          categories: categoriesWithRecommendations,
           summary: summaryData,
         });
 
         // Update sessionStorageCategories for SummarySection
-        setSessionStorageCategories(categories.map((cat, idx) => ({
+        setSessionStorageCategories(categoriesWithRecommendations.map((cat, idx) => ({
           id: cat.id || `temp-${idx}`,
           name: cat.name,
+          recommendation: cat.recommendation || "",
         })));
 
         // Store summary data in sessionStorage for SummarySection component
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('summaryData', JSON.stringify(summaryData));
           // Store category names for sidebar
-          categories.forEach((cat, index) => {
+          categoriesWithRecommendations.forEach((cat, index) => {
             const categoryNumber = index + 1;
             sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, cat.name);
             if (cat.icon) {
               sessionStorage.setItem(`auditData:categoryIcon:${categoryNumber}`, cat.icon);
             } else {
               sessionStorage.removeItem(`auditData:categoryIcon:${categoryNumber}`);
+            }
+            if (cat.recommendation !== undefined) {
+              sessionStorage.setItem(
+                `auditData:categoryRecommendation:${categoryNumber}`,
+                cat.recommendation
+              );
             }
           });
           window.dispatchEvent(new Event('categoryNameUpdated'));
@@ -495,11 +525,17 @@ export default function UpdateAudit() {
       setSessionStorageCategories(prev => {
         const updated = [...prev];
         const categoryIndex = currentCategory - 1;
+        const wasNewCategory = updated.length <= categoryIndex;
+        
         // Ensure array is long enough
         while (updated.length <= categoryIndex) {
+          const catNum = updated.length + 1;
+          // Try to get ID from formData if available
+          const formDataCategory = formData.categories[updated.length];
           updated.push({
-            id: `temp-${updated.length}`,
-            name: `Category ${updated.length + 1}`,
+            id: formDataCategory?.id || `temp-${updated.length}`,
+            name: `Category ${catNum}`,
+            recommendation: formDataCategory?.recommendation || "",
           });
         }
         // Update the category name
@@ -507,6 +543,12 @@ export default function UpdateAudit() {
           ...updated[categoryIndex],
           name: finalName,
         };
+        
+        // If this was a new category, dispatch event to notify SummarySection
+        if (wasNewCategory && typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('categoryNameUpdated'));
+        }
+        
         return updated;
       });
       
@@ -556,6 +598,7 @@ export default function UpdateAudit() {
     setFormData(prev => {
       const newCategories = [...prev.categories];
       const categoryIndex = currentCategory - 1;
+      const wasNewCategory = newCategories.length <= categoryIndex;
       
       // Ensure array is long enough
       while (newCategories.length <= categoryIndex) {
@@ -593,6 +636,40 @@ export default function UpdateAudit() {
       
       category.questions = questions;
       newCategories[categoryIndex] = category;
+      
+      // If this is a new category with questions, update sessionStorageCategories
+      if (wasNewCategory && text.trim().length > 0 && typeof window !== 'undefined') {
+        // Update sessionStorageCategories to include the new category
+        setSessionStorageCategories(prev => {
+          const updated = [...prev];
+          while (updated.length <= categoryIndex) {
+            const catNum = updated.length + 1;
+            const storedName = sessionStorage.getItem(`auditData:categoryName:${catNum}`);
+            updated.push({
+              id: `temp-${updated.length}`,
+              name: storedName || `Category ${catNum}`,
+              recommendation: sessionStorage.getItem(`auditData:categoryRecommendation:${catNum}`) || "",
+            });
+          }
+          // Update the name from sessionStorage if available
+          const storedName = sessionStorage.getItem(`auditData:categoryName:${currentCategory}`);
+          if (storedName) {
+            updated[categoryIndex].name = storedName;
+          } else {
+            updated[categoryIndex].name = category.name;
+          }
+          return updated;
+        });
+        
+        // Store category name in sessionStorage if not already stored
+        const storedName = sessionStorage.getItem(`auditData:categoryName:${currentCategory}`);
+        if (!storedName) {
+          sessionStorage.setItem(`auditData:categoryName:${currentCategory}`, category.name);
+        }
+        
+        // Dispatch event to notify SummarySection
+        window.dispatchEvent(new Event('categoryNameUpdated'));
+      }
       
       return {
         ...prev,
@@ -704,6 +781,56 @@ export default function UpdateAudit() {
     });
   };
 
+  const handleCategoryRecommendationChange = React.useCallback(
+    (categoryId: string, value: string, categoryIndex: number) => {
+      setFormData((prev) => {
+        const newCategories = [...prev.categories];
+        let targetIndex = newCategories.findIndex((cat, idx) =>
+          cat.id ? cat.id === categoryId : idx === categoryIndex - 1
+        );
+        if (targetIndex === -1 && categoryIndex >= 1) {
+          targetIndex = Math.min(categoryIndex - 1, newCategories.length - 1);
+        }
+        if (targetIndex >= 0 && targetIndex < newCategories.length) {
+          newCategories[targetIndex] = {
+            ...newCategories[targetIndex],
+            recommendation: value,
+          };
+          return {
+            ...prev,
+            categories: newCategories,
+          };
+        }
+        return prev;
+      });
+
+      setSessionStorageCategories((prev) => {
+        const next = [...prev];
+        let targetIndex = next.findIndex((cat, idx) =>
+          cat.id ? cat.id === categoryId : idx === categoryIndex - 1
+        );
+        if (targetIndex === -1 && categoryIndex >= 1) {
+          targetIndex = categoryIndex - 1;
+        }
+        while (targetIndex >= next.length && next.length < 7) {
+          next.push({
+            id: `temp-${next.length}`,
+            name: `Category ${next.length + 1}`,
+            recommendation: "",
+          });
+        }
+        if (targetIndex >= 0 && targetIndex < next.length) {
+          next[targetIndex] = {
+            ...next[targetIndex],
+            recommendation: value,
+          };
+        }
+        return next;
+      });
+    },
+    []
+  );
+
   const handleUpdate = async () => {
     if (!editId) {
       toast.error("Audit ID is missing");
@@ -728,6 +855,13 @@ export default function UpdateAudit() {
       setSubmitting(true);
 
     try {
+      const recommendationEntries = formData.categories
+        .slice(0, 7)
+        .map((cat, idx) => ({
+          categoryId: cat.id || `temp-${idx}`,
+          recommendation: cat.recommendation || "",
+        }));
+
       // Get latest category names from sessionStorage (source of truth)
       // This ensures names updated in Sidebar are included in the payload
       const latestCategoryNames: Record<number, string> = {};
@@ -791,64 +925,59 @@ export default function UpdateAudit() {
       }
 
       // Get summary data from sessionStorage (priority) or form data (fallback)
-      let summaryData = null;
+      const summaryData: {
+        categoryRecommendations: Array<{ categoryId: string; recommendation: string }>;
+        nextSteps: Array<{ type: 'file' | 'text'; content: string; fileUrl?: string }>;
+        overallDetails?: string;
+      } = {
+        categoryRecommendations: recommendationEntries,
+        nextSteps: [],
+        overallDetails: undefined,
+      };
+
+      type SummarySource = {
+        nextSteps?: Array<{ type?: string; content?: string; fileUrl?: string }>;
+        overallDetails?: string | null;
+      };
+
+      const hydrateNextSteps = (source?: SummarySource | null) => {
+        if (!source) return;
+        if (Array.isArray(source.nextSteps)) {
+          summaryData.nextSteps = source.nextSteps.map((step) => ({
+            type: (step.type === 'file' || step.type === 'text') ? step.type : 'text',
+            content: step.content || '',
+            fileUrl: step.fileUrl,
+          }));
+        }
+        if (source.overallDetails !== undefined) {
+          summaryData.overallDetails = source.overallDetails || undefined;
+        }
+      };
+
       if (typeof window !== 'undefined') {
         const summaryDataStr = sessionStorage.getItem('summaryData');
         if (summaryDataStr) {
           try {
             const parsed = JSON.parse(summaryDataStr);
-            summaryData = {
-              categoryRecommendations: parsed.categoryRecommendations || [],
-              nextSteps: (parsed.nextSteps || []).map((step: { type: string; content: string; fileUrl?: string }) => ({
-                type: (step.type === 'file' || step.type === 'text') ? step.type : 'text' as 'file' | 'text',
-                content: step.content || '',
-                fileUrl: step.fileUrl,
-              })),
-              overallDetails: parsed.overallDetails || undefined,
-            };
+            hydrateNextSteps(parsed);
           } catch (error) {
             console.error('Error parsing summaryData from sessionStorage:', error);
-            // Fallback to formData
-            summaryData = formData.summary ? {
-              categoryRecommendations: formData.summary.categoryRecommendations || [],
-              nextSteps: (formData.summary.nextSteps || []).map(step => ({
-                type: (step.type === 'file' || step.type === 'text') ? step.type : 'text' as 'file' | 'text',
-                content: step.content,
-                fileUrl: step.fileUrl,
-              })),
-              overallDetails: formData.summary.overallDetails,
-            } : null;
+            if (formData.summary) {
+              hydrateNextSteps(formData.summary);
+            }
           }
         } else if (formData.summary) {
-          // Fallback to formData if no sessionStorage
-          summaryData = {
-            categoryRecommendations: formData.summary.categoryRecommendations || [],
-            nextSteps: (formData.summary.nextSteps || []).map(step => ({
-              type: (step.type === 'file' || step.type === 'text') ? step.type : 'text' as 'file' | 'text',
-              content: step.content,
-              fileUrl: step.fileUrl,
-            })),
-            overallDetails: formData.summary.overallDetails,
-          };
+          hydrateNextSteps(formData.summary);
         }
       } else if (formData.summary) {
-        // Server-side fallback
-        summaryData = {
-          categoryRecommendations: formData.summary.categoryRecommendations || [],
-          nextSteps: (formData.summary.nextSteps || []).map(step => ({
-            type: (step.type === 'file' || step.type === 'text') ? step.type : 'text' as 'file' | 'text',
-            content: step.content,
-            fileUrl: step.fileUrl,
-          })),
-          overallDetails: formData.summary.overallDetails,
-        };
+        hydrateNextSteps(formData.summary);
       }
 
       // Call update audit API
       await auditApi.update(editId, {
         title: formData.title.trim(),
         categories,
-        ...(summaryData && { summary: summaryData }),
+        summary: summaryData,
       });
 
       toast.success("Audit updated successfully");
@@ -954,6 +1083,7 @@ export default function UpdateAudit() {
             editId={editId}
             isCreateMode={false}
             sessionStorageCategories={sessionStorageCategories}
+            onRecommendationChange={handleCategoryRecommendationChange}
           />
         ) : (
           <div className="mt-8">

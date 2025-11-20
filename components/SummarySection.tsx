@@ -17,10 +17,11 @@ interface NextStep {
 interface SummarySectionProps {
   editId?: string | null;
   isCreateMode: boolean;
-  sessionStorageCategories: Array<{ id: string; name: string }>;
+  sessionStorageCategories: Array<{ id: string; name: string; recommendation?: string }>;
+  onRecommendationChange?: (categoryId: string, value: string, categoryIndex: number) => void;
 }
 
-export default function SummarySection({ editId, isCreateMode, sessionStorageCategories }: SummarySectionProps) {
+export default function SummarySection({ editId, isCreateMode, sessionStorageCategories, onRecommendationChange }: SummarySectionProps) {
   const [presentationId, setPresentationId] = useState<string | null>(null);
   
   // Fetch audit data to get categories (only if not available in sessionStorage)
@@ -47,6 +48,128 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
   // Use a key based on editId or create mode to reset ref when switching audits
   const initializationKeyRef = useRef<string | null>(null);
   const hasInitializedRef = useRef(false);
+
+  const getFallbackCategoryName = React.useCallback(
+    (categoryNumber: number) => {
+      if (typeof window !== "undefined") {
+        const storedName = sessionStorage.getItem(
+          `auditData:categoryName:${categoryNumber}`
+        );
+        if (storedName && storedName.trim()) {
+          return storedName;
+        }
+
+        const auditDataStr = sessionStorage.getItem("auditData");
+        if (auditDataStr) {
+          try {
+            const parsed = JSON.parse(auditDataStr);
+            const category =
+              parsed?.categories && parsed.categories[categoryNumber - 1];
+            if (category?.name) {
+              return category.name;
+            }
+          } catch {}
+        }
+      }
+
+      if (auditData?.categories?.[categoryNumber - 1]?.name) {
+        return auditData.categories[categoryNumber - 1].name;
+      }
+
+      return `Category ${categoryNumber}`;
+    },
+    [auditData?.categories]
+  );
+
+  const getStoredRecommendation = React.useCallback(
+    (categoryNumber: number) => {
+      if (typeof window !== "undefined") {
+        const stored = sessionStorage.getItem(
+          `auditData:categoryRecommendation:${categoryNumber}`
+        );
+        if (stored !== null) {
+          return stored;
+        }
+        const auditDataStr = sessionStorage.getItem("auditData");
+        if (auditDataStr) {
+          try {
+            const parsed = JSON.parse(auditDataStr);
+            const category =
+              parsed?.categories && parsed.categories[categoryNumber - 1];
+            if (category?.recommendation !== undefined) {
+              return category.recommendation;
+            }
+          } catch {}
+        }
+      }
+
+      const fallback = auditData?.categories?.[categoryNumber - 1] as
+        | { recommendation?: string }
+        | undefined;
+      if (fallback?.recommendation !== undefined) {
+        return fallback.recommendation;
+      }
+
+      return "";
+    },
+    [auditData?.categories]
+  );
+
+  const normalizeCategories = React.useCallback(
+    (cats: Array<{ id: string; name: string; recommendation?: string }>) => {
+      const normalized = [...cats]
+        .slice(0, 7)
+        .map((cat, index) => ({
+          id: (cat?.id && cat.id.trim()) ? cat.id : `temp-${index}`,
+          name: cat?.name || getFallbackCategoryName(index + 1),
+          recommendation:
+            cat?.recommendation ??
+            getStoredRecommendation(index + 1) ??
+            "",
+        }));
+      for (let i = normalized.length; i < 7; i++) {
+        normalized.push({
+          id: `temp-${i}`,
+          name: getFallbackCategoryName(i + 1),
+          recommendation: getStoredRecommendation(i + 1) ?? "",
+        });
+      }
+      return normalized;
+    },
+    [getFallbackCategoryName, getStoredRecommendation]
+  );
+
+  const persistCategoryRecommendation = React.useCallback(
+    (categoryIndex: number, value: string) => {
+      if (typeof window === "undefined" || categoryIndex < 1) return;
+      try {
+        sessionStorage.setItem(
+          `auditData:categoryRecommendation:${categoryIndex}`,
+          value
+        );
+        const raw = sessionStorage.getItem("auditData");
+        if (raw) {
+          const data = JSON.parse(raw);
+          if (!Array.isArray(data.categories)) data.categories = [];
+          const idx = categoryIndex - 1;
+          while (data.categories.length <= idx) {
+            data.categories.push({
+              name: `Category ${data.categories.length + 1}`,
+              questions: [],
+            });
+          }
+          data.categories[idx] = {
+            ...data.categories[idx],
+            recommendation: value,
+          };
+          sessionStorage.setItem("auditData", JSON.stringify(data));
+        }
+      } catch (error) {
+        console.error("Error saving category recommendation:", error);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (editId) {
@@ -115,17 +238,15 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
             }
           }
           
-          // Initialize empty for all categories if not in storage
-          if (categoriesToUse.length > 0) {
-            categoriesToUse.forEach((cat) => {
-              if (!recs[cat.id]) {
-                recs[cat.id] = "";
-              }
-            });
-          }
+          const normalizedInitialCategories = normalizeCategories(categoriesToUse);
+          normalizedInitialCategories.forEach((cat) => {
+            if (!recs[cat.id]) {
+              recs[cat.id] = "";
+            }
+          });
           
           // Always set recommendations if we have any data
-          if (Object.keys(recs).length > 0 || categoriesToUse.length > 0) {
+          if (Object.keys(recs).length > 0 || normalizedInitialCategories.length > 0) {
             setCategoryRecommendations(recs);
           }
           
@@ -196,7 +317,7 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
         const categoriesToUse = sessionStorageCategories.length > 0 
           ? sessionStorageCategories 
           : (auditData?.categories?.map((cat: { id: string; name: string }) => ({ id: cat.id, name: cat.name })) || []);
-        categoriesToUse.forEach((cat: { id: string }) => {
+        normalizeCategories(categoriesToUse).forEach((cat: { id: string }) => {
           if (!recs[cat.id]) {
             recs[cat.id] = "";
           }
@@ -252,7 +373,7 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
           : (auditData?.categories?.map((cat: { id: string; name: string }) => ({ id: cat.id, name: cat.name })) || []);
         if (categoriesToUse.length > 0) {
           const emptyRecs: Record<string, string> = {};
-          categoriesToUse.forEach((cat: { id: string }) => {
+          normalizeCategories(categoriesToUse).forEach((cat: { id: string }) => {
             emptyRecs[cat.id] = "";
           });
           setCategoryRecommendations(emptyRecs);
@@ -262,34 +383,40 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
     } else if (isCreateMode && sessionStorageCategories.length > 0 && !hasInitializedRef.current) {
       // For create mode, initialize empty if we have categories but no summary data
       const emptyRecs: Record<string, string> = {};
-      sessionStorageCategories.forEach((cat) => {
+      normalizeCategories(sessionStorageCategories).forEach((cat) => {
         emptyRecs[cat.id] = "";
       });
       setCategoryRecommendations(emptyRecs);
       hasInitializedRef.current = true;
     }
-  }, [summaryData, isCreateMode, sessionStorageCategories, editId, auditData?.categories]); // Include all dependencies but guard with hasInitializedRef to prevent overwriting
+  }, [summaryData, isCreateMode, sessionStorageCategories, editId, auditData?.categories, normalizeCategories]); // Include all dependencies but guard with hasInitializedRef to prevent overwriting
 
   // Update recommendations when sessionStorageCategories loads after initialization
   // This handles the case where categories load after recommendations are already set
   useEffect(() => {
-    if (!hasInitializedRef.current || sessionStorageCategories.length === 0) return;
+    if (!hasInitializedRef.current) return;
     
-    // Only update if we have recommendations but missing some category IDs
+    const normalizedSessionCategories = normalizeCategories(sessionStorageCategories);
     setCategoryRecommendations((prev) => {
       const updated = { ...prev };
       let hasChanges = false;
       
-      sessionStorageCategories.forEach((cat: { id: string }) => {
+      normalizedSessionCategories.forEach((cat: { id: string }, index: number) => {
         if (!(cat.id in updated)) {
-          updated[cat.id] = "";
+          const placeholderKey = `temp-${index}`;
+          if (placeholderKey in updated && placeholderKey !== cat.id) {
+            updated[cat.id] = updated[placeholderKey];
+            delete updated[placeholderKey];
+          } else {
+            updated[cat.id] = "";
+          }
           hasChanges = true;
         }
       });
       
       return hasChanges ? updated : prev;
     });
-  }, [sessionStorageCategories]);
+  }, [sessionStorageCategories, normalizeCategories]);
 
   // Listen for summary data updates (e.g., when categories are reordered)
   useEffect(() => {
@@ -330,7 +457,7 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
                 return [];
               })();
           
-          categoriesToUse.forEach((cat: { id: string }) => {
+          normalizeCategories(categoriesToUse).forEach((cat: { id: string }) => {
             if (!recs[cat.id]) {
               recs[cat.id] = "";
             }
@@ -347,7 +474,169 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
     return () => {
       window.removeEventListener('summaryDataUpdated', handleSummaryDataUpdate);
     };
+  }, [sessionStorageCategories, normalizeCategories]);
+
+  // Listen for category name updates and refresh categories from sessionStorage
+  const [refreshedCategories, setRefreshedCategories] = useState<Array<{ id: string; name: string; recommendation?: string }>>(sessionStorageCategories);
+  
+  // Update refreshedCategories when sessionStorageCategories prop changes
+  useEffect(() => {
+    if (sessionStorageCategories.length > 0) {
+      // Refresh names from sessionStorage when prop changes
+      const updatedCategories = sessionStorageCategories.map((cat, index) => {
+        const categoryNumber = index + 1;
+        if (typeof window !== 'undefined') {
+          const updatedName = sessionStorage.getItem(`auditData:categoryName:${categoryNumber}`);
+          return {
+            id: cat.id,
+            name: updatedName || cat.name || `Category ${categoryNumber}`,
+            recommendation:
+              sessionStorage.getItem(`auditData:categoryRecommendation:${categoryNumber}`) ??
+              cat.recommendation ??
+              "",
+          };
+        }
+        return cat;
+      });
+      setRefreshedCategories(updatedCategories);
+    }
   }, [sessionStorageCategories]);
+  
+  useEffect(() => {
+    const handleCategoryNameUpdate = () => {
+      if (typeof window === 'undefined') return;
+      
+      // Refresh categories from sessionStorage to get updated names
+      const updatedCategories: Array<{ id: string; name: string; recommendation?: string }> = [];
+      
+      // Try to get from sessionStorageCategories prop first (has real IDs)
+      if (sessionStorageCategories.length > 0) {
+        sessionStorageCategories.forEach((cat, index) => {
+          const categoryNumber = index + 1;
+          const updatedName = sessionStorage.getItem(`auditData:categoryName:${categoryNumber}`);
+          updatedCategories.push({
+            id: cat.id,
+            name: updatedName || cat.name || `Category ${categoryNumber}`,
+            recommendation:
+              sessionStorage.getItem(`auditData:categoryRecommendation:${categoryNumber}`) ??
+              cat.recommendation ??
+              "",
+          });
+        });
+      } else {
+        // Fallback: get from auditData in sessionStorage
+        try {
+          const auditDataStr = sessionStorage.getItem('auditData');
+          if (auditDataStr) {
+            const auditData = JSON.parse(auditDataStr);
+            if (auditData.categories && Array.isArray(auditData.categories)) {
+              auditData.categories.forEach((cat: { id: string; name: string; recommendation?: string }, index: number) => {
+                const categoryNumber = index + 1;
+                const updatedName = sessionStorage.getItem(`auditData:categoryName:${categoryNumber}`);
+                updatedCategories.push({
+                  id: cat.id || `temp-${index}`,
+                  name: updatedName || cat.name || `Category ${categoryNumber}`,
+                  recommendation:
+                    sessionStorage.getItem(`auditData:categoryRecommendation:${categoryNumber}`) ??
+                    cat.recommendation ??
+                    "",
+                });
+              });
+            }
+          }
+        } catch {}
+      }
+      
+      if (updatedCategories.length > 0) {
+        setRefreshedCategories(updatedCategories);
+      }
+    };
+
+    // Initial load
+    handleCategoryNameUpdate();
+
+    // Listen for category name updates
+    window.addEventListener('categoryNameUpdated', handleCategoryNameUpdate);
+    
+    // Also listen for storage events (cross-tab sync)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key?.startsWith('auditData:categoryName:')) {
+        handleCategoryNameUpdate();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('categoryNameUpdated', handleCategoryNameUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [sessionStorageCategories]);
+
+  const baseCategories = React.useMemo(() => {
+    if (isCreateMode) {
+      if (refreshedCategories.length > 0) return refreshedCategories;
+      if (sessionStorageCategories.length > 0) return sessionStorageCategories;
+      return [];
+    }
+
+    if (refreshedCategories.length > 0) return refreshedCategories;
+    if (sessionStorageCategories.length > 0) return sessionStorageCategories;
+    return (
+      auditData?.categories?.map(
+        (cat: { id: string; name: string; recommendation?: string }, index: number) => ({
+          id: cat.id,
+          name: cat.name || getFallbackCategoryName(index + 1),
+          recommendation: cat.recommendation || "",
+        })
+      ) || []
+    );
+  }, [
+    isCreateMode,
+    refreshedCategories,
+    sessionStorageCategories,
+    auditData?.categories,
+    getFallbackCategoryName,
+  ]);
+
+  const categories = React.useMemo(
+    () => normalizeCategories(baseCategories),
+    [baseCategories, normalizeCategories]
+  );
+
+  useEffect(() => {
+    setCategoryRecommendations((prev) => {
+      const updated = { ...prev };
+      let hasChanges = false;
+
+      categories.forEach((cat) => {
+        const currentValue = prev[cat.id];
+        if (
+          cat.recommendation !== undefined &&
+          cat.recommendation !== currentValue
+        ) {
+          updated[cat.id] = cat.recommendation;
+          hasChanges = true;
+        } else if (currentValue === undefined) {
+          updated[cat.id] = cat.recommendation || "";
+          hasChanges = true;
+        }
+      });
+
+      return hasChanges ? updated : prev;
+    });
+  }, [categories]);
+
+  const updateRecommendationValue = React.useCallback(
+    (categoryId: string, categoryIndex: number, value: string) => {
+      setCategoryRecommendations((prev) => ({
+        ...prev,
+        [categoryId]: value,
+      }));
+      persistCategoryRecommendation(categoryIndex, value);
+      onRecommendationChange?.(categoryId, value, categoryIndex);
+    },
+    [onRecommendationChange, persistCategoryRecommendation]
+  );
 
   const uploadToCloudinary = async (file: File): Promise<string> => {
     const uploadData = new FormData();
@@ -474,35 +763,10 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
     try {
       let categoryRecs: Array<{ categoryId: string; recommendation: string }> = [];
       
-      if (isCreateMode) {
-        // For create mode, use sessionStorage categories
-        const categories = sessionStorageCategories.length > 0 
-          ? sessionStorageCategories 
-          : Array.from({ length: 7 }, (_, i) => ({
-              id: `temp-${i}`,
-              name: `Category ${i + 1}`,
-            }));
-
-        categoryRecs = categories.map((cat) => ({
-          categoryId: cat.id,
-          recommendation: categoryRecommendations[cat.id] || "",
-        }));
-      } else {
-        // For update mode, use categories from sessionStorage (which have real IDs) or auditData
-        if (sessionStorageCategories.length > 0) {
-          // Use sessionStorage categories which have real IDs
-          categoryRecs = sessionStorageCategories.map((cat) => ({
-            categoryId: cat.id,
-            recommendation: categoryRecommendations[cat.id] || "",
-          }));
-        } else if (auditData?.categories && auditData.categories.length > 0) {
-          // Fallback to API categories
-          categoryRecs = auditData.categories.map((cat) => ({
-            categoryId: cat.id,
-            recommendation: categoryRecommendations[cat.id] || "",
-          }));
-        }
-      }
+      categoryRecs = categories.map((cat) => ({
+        categoryId: cat.id,
+        recommendation: categoryRecommendations[cat.id] || "",
+      }));
 
       // Prepare next steps (only include non-empty ones)
       const steps: NextStep[] = [];
@@ -526,7 +790,7 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
     } catch (err) {
       console.error("Error auto-saving summary to sessionStorage:", err);
     }
-  }, [categoryRecommendations, nextSteps, selections, overallDetails, fileUrls, isCreateMode, sessionStorageCategories, auditData]);
+  }, [categoryRecommendations, nextSteps, selections, overallDetails, fileUrls, categories]);
 
   // Auto-save summary data to sessionStorage (for both create and update mode)
   // Use a debounce to batch multiple rapid changes
@@ -553,37 +817,28 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
     );
   }
 
-  // Get categories from either API or sessionStorage
-  const categories = isCreateMode 
-    ? sessionStorageCategories.length > 0 
-      ? sessionStorageCategories 
-      : Array.from({ length: 7 }, (_, i) => ({
-          id: `temp-${i}`,
-          name: `Category ${i + 1}`,
-        }))
-    : (sessionStorageCategories.length > 0 ? sessionStorageCategories : (auditData?.categories || []));
-
   return (
     <div className="bg-white overflow-hidden h-[77vh] flex flex-col">
       <main className="flex-1 flex flex-wrap lg:flex-nowrap overflow-hidden px-6 py-4">
         {/* Left Side */}
         <div className="w-full lg:w-1/2 pr-0 lg:pr-6 flex flex-col overflow-hidden">
-          <h1 className="text-[24px] leading-[28px] tracking-[0.21px] uppercase mb-3 flex-shrink-0">
+          <h1 className="text-[24px] leading-[28px] tracking-[0.21px] uppercase mb-3 shrink-0">
             IMPROVEMENT RECOMMENDATIONS
           </h1>
           <div className="flex flex-col flex-1 overflow-hidden gap-2">
-            {categories.slice(0, 7).map((category) => (
-              <div className="flex-shrink-0" key={category.id}>
+            {categories.slice(0, 7).map((category, index) => (
+              <div className="shrink-0" key={category.id}>
                 <label className="block text-lg text-[#2B4055] tracking-[0.4px] mb-1">
                   {category.name}
                 </label>
                 <textarea
                   value={categoryRecommendations[category.id] || ""}
                   onChange={(e) => {
-                    setCategoryRecommendations((prev) => ({
-                      ...prev,
-                      [category.id]: e.target.value,
-                    }));
+                    updateRecommendationValue(
+                      category.id,
+                      index + 1,
+                      e.target.value
+                    );
                   }}
                   placeholder="Recommendation"
                   className="w-full h-[5vh] min-h-[40px] p-2 text-sm text-[#2B4055] tracking-[0.4px] font-extralight border border-[#AAA] rounded-lg resize-none outline-none"
@@ -597,13 +852,13 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
 
         {/* Right Side */}
         <div className="w-full lg:w-1/2 pl-0 lg:pl-6 flex flex-col overflow-hidden mt-6 lg:mt-0">
-          <h1 className="text-[24px] leading-[28px] tracking-[0.21px] uppercase flex-shrink-0">
+          <h1 className="text-[24px] leading-[28px] tracking-[0.21px] uppercase shrink-0">
             WHAT ARE THE NEXT STEPS?
           </h1>
 
           <div className="bg-[#EFEFEF] p-4 rounded-2xl mt-4 flex flex-col flex-1 overflow-hidden">
             {/* Top Boxes */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-4 flex-shrink-0">
+            <div className="flex flex-col sm:flex-row gap-3 mb-4 shrink-0">
               {[0, 1, 2].map((index) => (
                 <div
                   key={index}
@@ -711,7 +966,7 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
               ))}
             </div>
 
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <textarea
                 value={overallDetails}
                 onChange={(e) => setOverallDetails(e.target.value)}

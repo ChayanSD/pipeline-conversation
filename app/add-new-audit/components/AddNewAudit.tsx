@@ -20,7 +20,7 @@ export default function AddNewAudit() {
   const [categoryIcon, setCategoryIcon] = useState<string>("");
   const [tableQuestions, setTableQuestions] = useState<{ index: number; text: string }[]>([]);
   const [statusMap, setStatusMap] = useState<Record<number, string[]>>({});
-  const [sessionStorageCategories, setSessionStorageCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [sessionStorageCategories, setSessionStorageCategories] = useState<Array<{ id: string; name: string; recommendation?: string }>>([]);
   
   // Load categories from sessionStorage
   const loadCategoriesFromStorage = () => {
@@ -30,9 +30,10 @@ export default function AddNewAudit() {
       try {
         const parsed = JSON.parse(auditData);
         if (Array.isArray(parsed.categories)) {
-          const categories = parsed.categories.map((cat: { id?: string; name?: string }, idx: number) => ({
+          const categories = parsed.categories.map((cat: { id?: string; name?: string; recommendation?: string }, idx: number) => ({
             id: cat.id || `temp-${idx}`,
             name: cat.name || `Category ${idx + 1}`,
+            recommendation: cat.recommendation || "",
           }));
           setSessionStorageCategories(categories);
         }
@@ -143,6 +144,61 @@ export default function AddNewAudit() {
     return () => window.removeEventListener('categoryNameUpdated', handleCategoryUpdate);
   }, [currentCategory]);
 
+  const handleCategoryRecommendationChange = React.useCallback(
+    (categoryId: string, value: string, categoryIndex: number) => {
+      setSessionStorageCategories((prev) => {
+        const next = [...prev];
+        let targetIndex = next.findIndex((cat, idx) =>
+          cat.id ? cat.id === categoryId : idx === categoryIndex - 1
+        );
+        if (targetIndex === -1 && categoryIndex >= 1) {
+          targetIndex = categoryIndex - 1;
+        }
+        while (targetIndex >= next.length && next.length < 7) {
+          next.push({
+            id: `temp-${next.length}`,
+            name: `Category ${next.length + 1}`,
+            recommendation: "",
+          });
+        }
+        if (targetIndex >= 0 && targetIndex < next.length) {
+          next[targetIndex] = {
+            ...next[targetIndex],
+            recommendation: value,
+          };
+        }
+        return next;
+      });
+
+      if (typeof window !== 'undefined' && categoryIndex >= 1) {
+        try {
+          sessionStorage.setItem(
+            `auditData:categoryRecommendation:${categoryIndex}`,
+            value
+          );
+          const raw = sessionStorage.getItem('auditData');
+          const data = raw ? JSON.parse(raw) : { categories: [] };
+          if (!Array.isArray(data.categories)) data.categories = [];
+          const idx = categoryIndex - 1;
+          while (data.categories.length <= idx) {
+            data.categories.push({
+              name: `Category ${data.categories.length + 1}`,
+              questions: [],
+            });
+          }
+          data.categories[idx] = {
+            ...data.categories[idx],
+            recommendation: value,
+          };
+          sessionStorage.setItem('auditData', JSON.stringify(data));
+        } catch (error) {
+          console.error('Error saving category recommendation:', error);
+        }
+      }
+    },
+    []
+  );
+
   const buildAuditData = useMemo(() => {
     const merged: { title?: string; categories?: Array<{ name?: string; icon?: string; questions: Array<Partial<{ text: string; options: OptionState[] }>> }>; } = {};
 
@@ -197,7 +253,9 @@ export default function AddNewAudit() {
       if (idx < 7) {
         const finalCategoryName = categoryName.trim() || `Category ${currentCategory}`;
         const finalCategoryIcon = categoryIcon.trim() || undefined;
+        const previousCategory = existingCategories[idx] || {};
         existingCategories[idx] = {
+          ...previousCategory,
           name: finalCategoryName,
           icon: finalCategoryIcon,
           questions,
@@ -454,6 +512,7 @@ export default function AddNewAudit() {
             editId={null}
             isCreateMode={true}
             sessionStorageCategories={sessionStorageCategories}
+            onRecommendationChange={handleCategoryRecommendationChange}
           />
         ) : (
           <div className="mt-8">

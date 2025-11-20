@@ -31,6 +31,8 @@ export default function Sidebar() {
   const [draggedCategoryIndex, setDraggedCategoryIndex] = useState<number | null>(null);
   const [dragOverCategoryIndex, setDragOverCategoryIndex] = useState<number | null>(null);
   const [actualCategoryCount, setActualCategoryCount] = useState<number>(7);
+  const [dragHandleCategory, setDragHandleCategory] = useState<number | null>(null);
+  const [isTestSidebarLoading, setIsTestSidebarLoading] = useState<boolean>(false);
   
   // Load test result data for summary overview
   const [testResultData, setTestResultData] = useState<{
@@ -43,24 +45,9 @@ export default function Sidebar() {
     }>;
   } | null>(null);
 
-  // Helper function to convert hex to rgba with opacity (same as BackgroundWrapper)
-  const hexToRgba = (hex: string, opacity: number): string => {
-    const cleanHex = hex.replace('#', '');
-    let fullHex = cleanHex;
-    if (cleanHex.length === 3) {
-      fullHex = cleanHex.split('').map(char => char + char).join('');
-    }
-    if (fullHex.length !== 6) return hex;
-    const r = parseInt(fullHex.substring(0, 2), 16);
-    const g = parseInt(fullHex.substring(2, 4), 16);
-    const b = parseInt(fullHex.substring(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-  };
-
   // Get user's primary color with opacity
   const primaryColor = user?.primaryColor || '#2B4055';
-  const primaryColorWithOpacity = hexToRgba(primaryColor, 0.90); // 80% opacity for background
-  const primaryColorOverlay = hexToRgba(primaryColor, 0.70); // 70% opacity for BackgroundWrapper-style overlay
+  const secondaryColor = user?.secondaryColor || '#F7AF41';
 
   // Load test result data for summary overview
   useEffect(() => {
@@ -207,6 +194,36 @@ export default function Sidebar() {
       window.removeEventListener('storage', handleCategoryUpdate);
     };
   }, [pathname, searchParams]);
+
+  // Track loading state shared from TestPresentation for sidebar skeletons
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const readLoadingState = () => {
+      const stored = sessionStorage.getItem('testSidebarLoading');
+      setIsTestSidebarLoading(stored === 'true');
+    };
+
+    readLoadingState();
+
+    const handleLoadingChange = () => {
+      readLoadingState();
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'testSidebarLoading') {
+        readLoadingState();
+      }
+    };
+
+    window.addEventListener('testSidebarLoadingChanged', handleLoadingChange);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('testSidebarLoadingChanged', handleLoadingChange);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
 
   // Helper to get category name
   const getCategoryName = (categoryNumber: number): string => {
@@ -407,6 +424,7 @@ export default function Sidebar() {
           categoryData: string | null;
           questions: Record<number, string>;
           statuses: Record<number, string>;
+          recommendation: string | null;
         }> = {};
 
         for (let catNum = 1; catNum <= 7; catNum++) {
@@ -428,6 +446,7 @@ export default function Sidebar() {
             categoryData,
             questions,
             statuses,
+            recommendation: sessionStorage.getItem(`auditData:categoryRecommendation:${catNum}`),
           };
         }
 
@@ -495,6 +514,7 @@ export default function Sidebar() {
         for (let catNum = 1; catNum <= 7; catNum++) {
           sessionStorage.removeItem(`auditData:category:${catNum}`);
           sessionStorage.removeItem(`auditData:categoryName:${catNum}`);
+          sessionStorage.removeItem(`auditData:categoryRecommendation:${catNum}`);
           for (let qNum = 1; qNum <= 10; qNum++) {
             sessionStorage.removeItem(`auditData:question:${catNum}:${qNum}`);
             sessionStorage.removeItem(`auditData:status:${catNum}:${qNum}`);
@@ -508,6 +528,10 @@ export default function Sidebar() {
 
           // Write category name
           sessionStorage.setItem(`auditData:categoryName:${newCatNum}`, oldData.name);
+          sessionStorage.setItem(
+            `auditData:categoryRecommendation:${newCatNum}`,
+            oldData.recommendation || ""
+          );
 
           // Write category data
           if (oldData.categoryData) {
@@ -529,6 +553,7 @@ export default function Sidebar() {
 
             const categoryObj = {
               name: oldData.name,
+              recommendation: oldData.recommendation || "",
               questions: questionsArray,
             };
             sessionStorage.setItem(`auditData:category:${newCatNum}`, JSON.stringify(categoryObj));
@@ -689,6 +714,7 @@ export default function Sidebar() {
   const onTestPage = pathname === '/test';
   const onResultPage = pathname === '/test/result';
   const onMainPage = pathname === '/';
+  const shouldShowTestSkeleton = onTestPage && !!searchParams.get('presentationId') && isTestSidebarLoading;
 
   // Calculate effectiveItems based on current page - always start fresh
   let effectiveItems: NavigationItem[] = [];
@@ -781,7 +807,7 @@ export default function Sidebar() {
           <Image 
             onClick={() => router.push('/')}
             className="cursor-pointer"
-            src={logo} 
+            src={user?.company?.logoUrl || logo} 
             alt="Logo" 
             width={168} 
             height={60} 
@@ -838,11 +864,24 @@ export default function Sidebar() {
         ) : (
           <>
             {(onNewAuditPage || onUpdateAuditPage || onSummaryPage || onTestPage) && !onMainPage && (
-              <div className="px-4 text-center font-medium text-[#fffef7]">
+              <div className="px-4 mb-3 text-center font-medium text-[#fffef7]">
                 ALL AUDITS
               </div>
             )}
-            {effectiveItems.map((item) => {
+            {shouldShowTestSkeleton ? (
+              Array.from({ length: Math.max(actualCategoryCount, 4) }, (_, index) => (
+                <div
+                  key={`sidebar-skeleton-${index}`}
+                  className="ml-4 h-[40px] w-[88%] rounded-xl bg-white/10 overflow-hidden"
+                  style={{
+                    marginLeft: 'clamp(0.75rem, 2vw, 1rem)',
+                  }}
+                >
+                  <div className="h-full w-full animate-pulse bg-white/25" />
+                </div>
+              ))
+            ) : (
+              effectiveItems.map((item) => {
           // Active state: exact match for regular links; for category links, match by query param
           let isActive = pathname === item.href;
           const isCategoryItem = 'categoryNumber' in item && typeof item.categoryNumber === 'number';
@@ -877,21 +916,21 @@ export default function Sidebar() {
           
           if (useSecondary) {
             // Create/Update pages: use secondary styling
-            backgroundColor = primaryColorWithOpacity;
-            textColor = isActive ? 'white' : '#ffffff80';
+            backgroundColor =isActive ? "white": secondaryColor;
+            textColor = isActive ? 'black' : 'white';
           } else if (isTestPageCategory) {
             // Test page: active = white, inactive = primary with opacity
-            backgroundColor = isActive ? 'white' : hexToRgba(primaryColor, 0.9);
+            backgroundColor = isActive ? 'white' : secondaryColor;
             textColor = isActive ? 'black' : 'white';
           } else if (isNavigationItem && !isActive) {
             // Navigation items (ALL AUDITS, ALL TEAM MEMBERS) when inactive: match category button style
             // Use primary color with opacity background and white text (like category buttons on create/update pages)
-            backgroundColor = primaryColorWithOpacity;
-            textColor = '#ffffff80';
+            backgroundColor = secondaryColor;
+            textColor = 'white';
           } else {
             // Default: white background
             backgroundColor = 'white';
-            textColor = isActive ? 'black' : primaryColor;
+            textColor = isActive ? 'black' : secondaryColor;
           }
           
           const isDragging = isCategoryItem && itemCategoryNumber !== null && draggedCategoryIndex === (itemCategoryNumber - 1);
@@ -904,7 +943,18 @@ export default function Sidebar() {
             <div
               key={item.name}
               draggable={canDrag && !isSummaryItem}
-              onDragStart={canDrag && !isSummaryItem ? (e) => handleCategoryDragStart(e, itemCategoryNumber! - 1) : undefined}
+              onDragStart={(e) => {
+                if (!canDrag || isSummaryItem) {
+                  e.preventDefault();
+                  return;
+                }
+                if (itemCategoryNumber === null || dragHandleCategory !== itemCategoryNumber) {
+                  e.preventDefault();
+                  return;
+                }
+                handleCategoryDragStart(e, itemCategoryNumber - 1);
+              }}
+              onDragEnd={() => setDragHandleCategory(null)}
               onDragOver={canDrag && !isSummaryItem ? (e) => handleCategoryDragOver(e, itemCategoryNumber! - 1) : undefined}
               onDragLeave={canDrag && !isSummaryItem ? handleCategoryDragLeave : undefined}
               onDrop={canDrag && !isSummaryItem ? (e) => handleCategoryDrop(e, itemCategoryNumber! - 1) : undefined}
@@ -914,10 +964,10 @@ export default function Sidebar() {
                   e.stopPropagation();
                 }
               }}
-              className={`ml-4 h-[40px]  flex items-center ${
-                isActive 
+              className={`ml-4 h-[40px] cursor-pointer flex items-center ${
+                isActive   && !isEditing
                   ? 'w-[94.5%] mr-0 rounded-l-xl'  
-                  : 'w-[88%] rounded-xl'
+                  : 'w-[88%] rounded-xl '
               } ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-2 border-dashed border-white' : ''} ${canDrag && !isSummaryItem ? 'cursor-move' : ''}`}
               style={{
                 padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(0.75rem, 3vw, 1rem)',
@@ -925,108 +975,148 @@ export default function Sidebar() {
                 backgroundColor: backgroundColor,
                 color: textColor,
                 border: (useSecondary ? '2px solid ##899AA9' : 'none'),
-              }}
+              }}  
             >
-              {isEditing && itemCategoryNumber !== null ? (
-                <input
-                  type="text"
-                  defaultValue={getCategoryName(itemCategoryNumber)}
-                  autoFocus
-                  onBlur={(e) => {
-                    if (itemCategoryNumber !== null) {
-                      handleCategoryNameUpdate(itemCategoryNumber, e.target.value);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (itemCategoryNumber !== null) {
-                      if (e.key === 'Enter') {
-                        handleCategoryNameUpdate(itemCategoryNumber, e.currentTarget.value);
-                      } else if (e.key === 'Escape') {
-                        setEditingCategory(null);
-                      }
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full bg-transparent border border-white/50 rounded px-4 py-1 outline-none"
-                  style={{ color: 'inherit' }}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-between relative">
-                  {canDrag && (
-                    <svg 
-                      className="w-4 h-4 mr-2 flex-shrink-0" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                      style={{ color: 'inherit', opacity: 0.6 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                    </svg>
-                  )}
-                  <div className="flex-1 h-full flex items-center gap-2">
-                    {/* Category icon - clickable to open icon picker on create/update pages */}
-                    {isCategoryItem && itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage) ? (
-                      editingIconCategory === itemCategoryNumber ? (
-                        // Show IconPicker dropdown directly (no button)
-                        <div 
-                          className="relative"
-                          style={{ 
-                            zIndex: 99999,
-                            overflow: 'visible',
-                            position: 'relative'
-                          }}
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                        >
-                          <IconPicker
-                            value={getCategoryIcon(itemCategoryNumber)}
-                            onChange={(iconName) => {
-                              handleCategoryIconUpdate(itemCategoryNumber, iconName);
-                              setEditingIconCategory(null);
-                            }}
-                            placeholder="Select icon"
-                            showButton={false}
-                            isOpen={true}
-                            onClose={() => setEditingIconCategory(null)}
-                          />
-                        </div>
-                      ) : (
-                        // Show clickable icon
-                        <div
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setEditingIconCategory(itemCategoryNumber);
-                          }}
-                          className="cursor-pointer flex items-center justify-center hover:opacity-80 transition-opacity"
-                          style={{ 
-                            color: 'inherit',
-                            minWidth: '20px',
-                            minHeight: '20px'
-                          }}
-                          title="Click to change icon"
-                        >
-                          {getCategoryIcon(itemCategoryNumber) ? (
-                            renderIcon(getCategoryIcon(itemCategoryNumber))
-                          ) : (
-                            item.icon
-                          )}
-                        </div>
-                      )
-                    ) : (
-                      // Non-editable icon (on other pages)
-                      <div className="flex items-center justify-center">
-                        {isCategoryItem && itemCategoryNumber !== null && getCategoryIcon(itemCategoryNumber) ? (
+                    {isEditing && itemCategoryNumber !== null ? (
+                <div className="w-full h-full flex items-center relative">
+                  {/* Single Input Field Container */}
+                  <div className="w-full bg-transparent border-2 border-white rounded px-2 py-1 flex items-center gap-2">
+                    {/* Icon Display with Dropdown Arrow */}
+                    <div className="flex items-center gap-1 shrink-0">
+                    <div className='w-[262px] h-10 border-2 border-[#45698799] rounded-xl -left-[15px] absolute pointer-events-none bg-transparent'></div>
+                    <div className='w-[280px] h-13 border-2 border-r-0 rounded-r-none border-gray-300 rounded-2xl -left-[22px] absolute pointer-events-none bg-transparent active-nav-item2'></div>
+                      <div
+                        className="flex items-center justify-center"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setEditingIconCategory(itemCategoryNumber);
+                        }}
+                        style={{ 
+                          color: 'inherit',
+                          minWidth: '20px',
+                          minHeight: '20px'
+                        }}
+                      >
+                        {getCategoryIcon(itemCategoryNumber) ? (
                           renderIcon(getCategoryIcon(itemCategoryNumber))
                         ) : (
                           item.icon
                         )}
                       </div>
-                    )}
+                      
+                      {/* Dropdown Button beside icon */}
+                      <button
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setEditingIconCategory(itemCategoryNumber);
+                        }}
+                        className="p-0.5 hover:opacity-80 transition-opacity"
+                        style={{ color: 'inherit' }}
+                        title="Change icon"
+                      >
+                        <svg 
+                          className="w-3 h-3" 
+                          fill="currentColor" 
+                          viewBox="0 0 20 20"
+                        >
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
+                    
+                    {/* Editable Text Field */}
+                    <input
+                      type="text"
+                      defaultValue={getCategoryName(itemCategoryNumber)}
+                      autoFocus
+                      onBlur={(e) => {
+                        if (itemCategoryNumber !== null) {
+                          handleCategoryNameUpdate(itemCategoryNumber, e.target.value);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (itemCategoryNumber !== null) {
+                          if (e.key === 'Enter') {
+                            handleCategoryNameUpdate(itemCategoryNumber, e.currentTarget.value);
+                          } else if (e.key === 'Escape') {
+                            setEditingCategory(null);
+                          }
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 bg-transparent outline-none border-none"
+                      style={{ color: 'inherit' }}
+                    />
+                  </div>
+                  
+                  {/* Icon Picker Dropdown */}
+                  {editingIconCategory === itemCategoryNumber && (
+                    <div 
+                      className="absolute top-full left-0 mt-1"
+                      style={{ 
+                        zIndex: 99999,
+                        overflow: 'visible',
+                        position: 'absolute'
+                      }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
+                      <IconPicker
+                        value={getCategoryIcon(itemCategoryNumber)}
+                        onChange={(iconName) => {
+                          handleCategoryIconUpdate(itemCategoryNumber, iconName);
+                          setEditingIconCategory(null);
+                        }}
+                        placeholder="Select icon"
+                        showButton={false}
+                        isOpen={true}
+                        onClose={() => setEditingIconCategory(null)}
+                      />
+                      
+                    </div>
+                  )}
+                </div>
+              )  : (
+                <div className="w-full h-full flex items-center justify-between relative">
+                  {canDrag && (
+                    <div
+                      className="w-4 h-4 mr-2 shrink-0 cursor-grab"
+                      onMouseDown={() => {
+                        if (itemCategoryNumber !== null) {
+                          setDragHandleCategory(itemCategoryNumber);
+                        }
+                      }}
+                      onMouseUp={() => setDragHandleCategory(null)}
+                      onMouseLeave={() => setDragHandleCategory(null)}
+                    >
+                      <svg 
+                        className="w-4 h-4" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                        style={{ color: 'inherit', opacity: 0.6 }}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="flex-1 h-9 flex items-center gap-2">
+                    {/* Category icon - view only until edit mode */}
+                    <div className="flex items-center justify-center">
+                      {isCategoryItem && itemCategoryNumber !== null && getCategoryIcon(itemCategoryNumber) ? (
+                        renderIcon(getCategoryIcon(itemCategoryNumber))
+                      ) : (
+                        item.icon
+                      )}
+                    </div>
                     <button
                       onClick={(e) => {
                         e.preventDefault();
@@ -1048,54 +1138,23 @@ export default function Sidebar() {
                           console.log('Navigation blocked:', { isEditing, isSummaryItem, itemCategoryNumber, editingIconCategory });
                         }
                       }}
-                      className="flex-1 h-full cursor-pointer flex items-center gap-2 text-left text-nowrap overflow-hidden text-ellipsis whitespace-nowrap"
-                      style={{ color: 'inherit' }}
+                      className={`flex-1 h-full cursor-pointer flex items-center gap-2 text-left text-nowrap overflow-hidden text-ellipsis whitespace-nowrap ${isActive || isEditing ? 'active-nav-item' : ''}`}
+                      // style={{ color: 'inherit' }}
                     >
                       <span>{item.name}</span>
+               
                     </button>
                   </div>
-            {isActive && <div>
-            <div 
-                className='absolute -right-5 -top-[26.6px] border-r-4 h-4 w-4 rounded rounded-r-full rotate-45 font-bold overflow-hidden'
-                style={{ 
-                  backgroundImage: 'url(/bg-img.png)',
-                  backgroundSize: 'contain',
-                  borderColor: (onNewAuditPage || onUpdateAuditPage || onSummaryPage) ? primaryColor : 'white',
-                }}
-              >
-                <div 
-                  style={{ 
-                    backgroundColor: primaryColorOverlay,
-                    position: 'absolute',
-                    inset: 0,
-                  }}
-                ></div>
-              </div>
-              <div 
-                className='absolute -right-5 -bottom-[26.6px] border-r-4 h-4 w-4 rounded rounded-r-full -rotate-45 font-bold overflow-hidden'
-                style={{ 
-                  backgroundImage: 'url(/bg-img.png)',
-                  backgroundSize: 'contain',
-                  borderColor: (onNewAuditPage || onUpdateAuditPage || onSummaryPage) ? primaryColor : 'white',
-                }}
-              >
-                <div 
-                  style={{ 
-                    backgroundColor: primaryColorOverlay,
-                    position: 'absolute',
-                    inset: 0,
-                  }}
-                ></div>
-              </div>
-            </div>
-
-            }
+          
               
              {isCategoryItem && itemCategoryNumber !== null && (onNewAuditPage || onUpdateAuditPage) && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditingCategory(itemCategoryNumber);
+                        if (item.href) {
+                          router.push(item.href);
+                        }
                       }}
                       className="p-1 rounded hover:bg-white/20 cursor-pointer flex items-center"
                       style={{ color: 'inherit' }}
@@ -1105,11 +1164,13 @@ export default function Sidebar() {
                     </button>
                     
                   )}
+                  
                 </div>
-              )}
+              ) }
             </div>
           );
-        })}
+              })
+            )}
           </>
         )}
       </nav>
