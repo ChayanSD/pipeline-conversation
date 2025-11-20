@@ -424,6 +424,7 @@ export default function Sidebar() {
           categoryData: string | null;
           questions: Record<number, string>;
           statuses: Record<number, string>;
+          recommendation: string | null;
         }> = {};
 
         for (let catNum = 1; catNum <= 7; catNum++) {
@@ -445,6 +446,7 @@ export default function Sidebar() {
             categoryData,
             questions,
             statuses,
+            recommendation: sessionStorage.getItem(`auditData:categoryRecommendation:${catNum}`),
           };
         }
 
@@ -512,6 +514,7 @@ export default function Sidebar() {
         for (let catNum = 1; catNum <= 7; catNum++) {
           sessionStorage.removeItem(`auditData:category:${catNum}`);
           sessionStorage.removeItem(`auditData:categoryName:${catNum}`);
+          sessionStorage.removeItem(`auditData:categoryRecommendation:${catNum}`);
           for (let qNum = 1; qNum <= 10; qNum++) {
             sessionStorage.removeItem(`auditData:question:${catNum}:${qNum}`);
             sessionStorage.removeItem(`auditData:status:${catNum}:${qNum}`);
@@ -525,6 +528,10 @@ export default function Sidebar() {
 
           // Write category name
           sessionStorage.setItem(`auditData:categoryName:${newCatNum}`, oldData.name);
+          sessionStorage.setItem(
+            `auditData:categoryRecommendation:${newCatNum}`,
+            oldData.recommendation || ""
+          );
 
           // Write category data
           if (oldData.categoryData) {
@@ -546,6 +553,7 @@ export default function Sidebar() {
 
             const categoryObj = {
               name: oldData.name,
+              recommendation: oldData.recommendation || "",
               questions: questionsArray,
             };
             sessionStorage.setItem(`auditData:category:${newCatNum}`, JSON.stringify(categoryObj));

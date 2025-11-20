@@ -17,10 +17,11 @@ interface NextStep {
 interface SummarySectionProps {
   editId?: string | null;
   isCreateMode: boolean;
-  sessionStorageCategories: Array<{ id: string; name: string }>;
+  sessionStorageCategories: Array<{ id: string; name: string; recommendation?: string }>;
+  onRecommendationChange?: (categoryId: string, value: string, categoryIndex: number) => void;
 }
 
-export default function SummarySection({ editId, isCreateMode, sessionStorageCategories }: SummarySectionProps) {
+export default function SummarySection({ editId, isCreateMode, sessionStorageCategories, onRecommendationChange }: SummarySectionProps) {
   const [presentationId, setPresentationId] = useState<string | null>(null);
   
   // Fetch audit data to get categories (only if not available in sessionStorage)
@@ -80,23 +81,94 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
     [auditData?.categories]
   );
 
+  const getStoredRecommendation = React.useCallback(
+    (categoryNumber: number) => {
+      if (typeof window !== "undefined") {
+        const stored = sessionStorage.getItem(
+          `auditData:categoryRecommendation:${categoryNumber}`
+        );
+        if (stored !== null) {
+          return stored;
+        }
+        const auditDataStr = sessionStorage.getItem("auditData");
+        if (auditDataStr) {
+          try {
+            const parsed = JSON.parse(auditDataStr);
+            const category =
+              parsed?.categories && parsed.categories[categoryNumber - 1];
+            if (category?.recommendation !== undefined) {
+              return category.recommendation;
+            }
+          } catch {}
+        }
+      }
+
+      const fallback = auditData?.categories?.[categoryNumber - 1] as
+        | { recommendation?: string }
+        | undefined;
+      if (fallback?.recommendation !== undefined) {
+        return fallback.recommendation;
+      }
+
+      return "";
+    },
+    [auditData?.categories]
+  );
+
   const normalizeCategories = React.useCallback(
-    (cats: Array<{ id: string; name: string }>) => {
+    (cats: Array<{ id: string; name: string; recommendation?: string }>) => {
       const normalized = [...cats]
         .slice(0, 7)
         .map((cat, index) => ({
           id: (cat?.id && cat.id.trim()) ? cat.id : `temp-${index}`,
           name: cat?.name || getFallbackCategoryName(index + 1),
+          recommendation:
+            cat?.recommendation ??
+            getStoredRecommendation(index + 1) ??
+            "",
         }));
       for (let i = normalized.length; i < 7; i++) {
         normalized.push({
           id: `temp-${i}`,
           name: getFallbackCategoryName(i + 1),
+          recommendation: getStoredRecommendation(i + 1) ?? "",
         });
       }
       return normalized;
     },
-    [getFallbackCategoryName]
+    [getFallbackCategoryName, getStoredRecommendation]
+  );
+
+  const persistCategoryRecommendation = React.useCallback(
+    (categoryIndex: number, value: string) => {
+      if (typeof window === "undefined" || categoryIndex < 1) return;
+      try {
+        sessionStorage.setItem(
+          `auditData:categoryRecommendation:${categoryIndex}`,
+          value
+        );
+        const raw = sessionStorage.getItem("auditData");
+        if (raw) {
+          const data = JSON.parse(raw);
+          if (!Array.isArray(data.categories)) data.categories = [];
+          const idx = categoryIndex - 1;
+          while (data.categories.length <= idx) {
+            data.categories.push({
+              name: `Category ${data.categories.length + 1}`,
+              questions: [],
+            });
+          }
+          data.categories[idx] = {
+            ...data.categories[idx],
+            recommendation: value,
+          };
+          sessionStorage.setItem("auditData", JSON.stringify(data));
+        }
+      } catch (error) {
+        console.error("Error saving category recommendation:", error);
+      }
+    },
+    []
   );
 
   useEffect(() => {
@@ -405,7 +477,7 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
   }, [sessionStorageCategories, normalizeCategories]);
 
   // Listen for category name updates and refresh categories from sessionStorage
-  const [refreshedCategories, setRefreshedCategories] = useState<Array<{ id: string; name: string }>>(sessionStorageCategories);
+  const [refreshedCategories, setRefreshedCategories] = useState<Array<{ id: string; name: string; recommendation?: string }>>(sessionStorageCategories);
   
   // Update refreshedCategories when sessionStorageCategories prop changes
   useEffect(() => {
@@ -418,6 +490,10 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
           return {
             id: cat.id,
             name: updatedName || cat.name || `Category ${categoryNumber}`,
+            recommendation:
+              sessionStorage.getItem(`auditData:categoryRecommendation:${categoryNumber}`) ??
+              cat.recommendation ??
+              "",
           };
         }
         return cat;
@@ -431,7 +507,7 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
       if (typeof window === 'undefined') return;
       
       // Refresh categories from sessionStorage to get updated names
-      const updatedCategories: Array<{ id: string; name: string }> = [];
+      const updatedCategories: Array<{ id: string; name: string; recommendation?: string }> = [];
       
       // Try to get from sessionStorageCategories prop first (has real IDs)
       if (sessionStorageCategories.length > 0) {
@@ -441,6 +517,10 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
           updatedCategories.push({
             id: cat.id,
             name: updatedName || cat.name || `Category ${categoryNumber}`,
+            recommendation:
+              sessionStorage.getItem(`auditData:categoryRecommendation:${categoryNumber}`) ??
+              cat.recommendation ??
+              "",
           });
         });
       } else {
@@ -450,12 +530,16 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
           if (auditDataStr) {
             const auditData = JSON.parse(auditDataStr);
             if (auditData.categories && Array.isArray(auditData.categories)) {
-              auditData.categories.forEach((cat: { id: string; name: string }, index: number) => {
+              auditData.categories.forEach((cat: { id: string; name: string; recommendation?: string }, index: number) => {
                 const categoryNumber = index + 1;
                 const updatedName = sessionStorage.getItem(`auditData:categoryName:${categoryNumber}`);
                 updatedCategories.push({
                   id: cat.id || `temp-${index}`,
                   name: updatedName || cat.name || `Category ${categoryNumber}`,
+                  recommendation:
+                    sessionStorage.getItem(`auditData:categoryRecommendation:${categoryNumber}`) ??
+                    cat.recommendation ??
+                    "",
                 });
               });
             }
@@ -499,9 +583,10 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
     if (sessionStorageCategories.length > 0) return sessionStorageCategories;
     return (
       auditData?.categories?.map(
-        (cat: { id: string; name: string }, index: number) => ({
+        (cat: { id: string; name: string; recommendation?: string }, index: number) => ({
           id: cat.id,
           name: cat.name || getFallbackCategoryName(index + 1),
+          recommendation: cat.recommendation || "",
         })
       ) || []
     );
@@ -516,6 +601,41 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
   const categories = React.useMemo(
     () => normalizeCategories(baseCategories),
     [baseCategories, normalizeCategories]
+  );
+
+  useEffect(() => {
+    setCategoryRecommendations((prev) => {
+      const updated = { ...prev };
+      let hasChanges = false;
+
+      categories.forEach((cat) => {
+        const currentValue = prev[cat.id];
+        if (
+          cat.recommendation !== undefined &&
+          cat.recommendation !== currentValue
+        ) {
+          updated[cat.id] = cat.recommendation;
+          hasChanges = true;
+        } else if (currentValue === undefined) {
+          updated[cat.id] = cat.recommendation || "";
+          hasChanges = true;
+        }
+      });
+
+      return hasChanges ? updated : prev;
+    });
+  }, [categories]);
+
+  const updateRecommendationValue = React.useCallback(
+    (categoryId: string, categoryIndex: number, value: string) => {
+      setCategoryRecommendations((prev) => ({
+        ...prev,
+        [categoryId]: value,
+      }));
+      persistCategoryRecommendation(categoryIndex, value);
+      onRecommendationChange?.(categoryId, value, categoryIndex);
+    },
+    [onRecommendationChange, persistCategoryRecommendation]
   );
 
   const uploadToCloudinary = async (file: File): Promise<string> => {
@@ -706,7 +826,7 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
             IMPROVEMENT RECOMMENDATIONS
           </h1>
           <div className="flex flex-col flex-1 overflow-hidden gap-2">
-            {categories.slice(0, 7).map((category) => (
+            {categories.slice(0, 7).map((category, index) => (
               <div className="shrink-0" key={category.id}>
                 <label className="block text-lg text-[#2B4055] tracking-[0.4px] mb-1">
                   {category.name}
@@ -714,10 +834,11 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
                 <textarea
                   value={categoryRecommendations[category.id] || ""}
                   onChange={(e) => {
-                    setCategoryRecommendations((prev) => ({
-                      ...prev,
-                      [category.id]: e.target.value,
-                    }));
+                    updateRecommendationValue(
+                      category.id,
+                      index + 1,
+                      e.target.value
+                    );
                   }}
                   placeholder="Recommendation"
                   className="w-full h-[5vh] min-h-[40px] p-2 text-sm text-[#2B4055] tracking-[0.4px] font-extralight border border-[#AAA] rounded-lg resize-none outline-none"
