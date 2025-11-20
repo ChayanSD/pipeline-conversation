@@ -81,7 +81,7 @@
   width: 20px;
   height: 20px;
   background: transparent;
-  border-bottom-right-radius: 20px;
+  border-bottom-right-radius: 15px;
   box-shadow: 5px 5px 0 5px #ffffff;
 }
 
@@ -93,7 +93,7 @@
   width: 20px;
   height: 20px;
   background: transparent;
-  border-top-right-radius: 20px;
+  border-top-right-radius: 15px;
   box-shadow: 5px -5px 0 5px #ffffff;
 }
 .active-nav-item2::before {
