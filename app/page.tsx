@@ -248,7 +248,7 @@ export default function Home() {
             <tr>
               <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">AUDIT Name</th>
               <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">Creation Date</th>
-             {/* <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">Audit Score</th> */}
+              <th className="px-6 py-4 border-r text-left text-sm font-semibold text-gray-700 border-b">Score</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 border-b">Action</th>
             </tr>
           </thead>
@@ -259,7 +259,7 @@ export default function Home() {
                 <tr key={audit.id} className="border-b border-[#E0E0E0] hover:bg-gray-50">
                   <td className="px-6 border-r py-4 text-gray-800">{audit.title}</td>
                   <td className="px-6 border-r py-4 text-gray-600">{formatDate(audit.createdAt)}</td>
-                  {/* <td className="px-6 border-r py-4">
+                  <td className="px-6 border-r py-4">
                     {audit.latestScore !== undefined ? (
                       <span
                         className="px-3 py-1 rounded text-sm font-medium"
@@ -268,9 +268,9 @@ export default function Home() {
                         {audit.latestScore}
                       </span>
                     ) : (
-                      <span className="text-gray-400 text-sm">No score</span>
+                      <span className="text-gray-400 text-sm">-</span>
                     )}
-                  </td> */}
+                  </td>
                   <td className="px-6 py-4">
                     <div className="grid grid-cols-4 gap-2">
                       {!isInvitedUser && (

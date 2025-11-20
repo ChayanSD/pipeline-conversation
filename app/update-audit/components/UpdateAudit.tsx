@@ -495,11 +495,16 @@ export default function UpdateAudit() {
       setSessionStorageCategories(prev => {
         const updated = [...prev];
         const categoryIndex = currentCategory - 1;
+        const wasNewCategory = updated.length <= categoryIndex;
+        
         // Ensure array is long enough
         while (updated.length <= categoryIndex) {
+          const catNum = updated.length + 1;
+          // Try to get ID from formData if available
+          const formDataCategory = formData.categories[updated.length];
           updated.push({
-            id: `temp-${updated.length}`,
-            name: `Category ${updated.length + 1}`,
+            id: formDataCategory?.id || `temp-${updated.length}`,
+            name: `Category ${catNum}`,
           });
         }
         // Update the category name
@@ -507,6 +512,12 @@ export default function UpdateAudit() {
           ...updated[categoryIndex],
           name: finalName,
         };
+        
+        // If this was a new category, dispatch event to notify SummarySection
+        if (wasNewCategory && typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('categoryNameUpdated'));
+        }
+        
         return updated;
       });
       
@@ -556,6 +567,7 @@ export default function UpdateAudit() {
     setFormData(prev => {
       const newCategories = [...prev.categories];
       const categoryIndex = currentCategory - 1;
+      const wasNewCategory = newCategories.length <= categoryIndex;
       
       // Ensure array is long enough
       while (newCategories.length <= categoryIndex) {
@@ -593,6 +605,39 @@ export default function UpdateAudit() {
       
       category.questions = questions;
       newCategories[categoryIndex] = category;
+      
+      // If this is a new category with questions, update sessionStorageCategories
+      if (wasNewCategory && text.trim().length > 0 && typeof window !== 'undefined') {
+        // Update sessionStorageCategories to include the new category
+        setSessionStorageCategories(prev => {
+          const updated = [...prev];
+          while (updated.length <= categoryIndex) {
+            const catNum = updated.length + 1;
+            const storedName = sessionStorage.getItem(`auditData:categoryName:${catNum}`);
+            updated.push({
+              id: `temp-${updated.length}`,
+              name: storedName || `Category ${catNum}`,
+            });
+          }
+          // Update the name from sessionStorage if available
+          const storedName = sessionStorage.getItem(`auditData:categoryName:${currentCategory}`);
+          if (storedName) {
+            updated[categoryIndex].name = storedName;
+          } else {
+            updated[categoryIndex].name = category.name;
+          }
+          return updated;
+        });
+        
+        // Store category name in sessionStorage if not already stored
+        const storedName = sessionStorage.getItem(`auditData:categoryName:${currentCategory}`);
+        if (!storedName) {
+          sessionStorage.setItem(`auditData:categoryName:${currentCategory}`, category.name);
+        }
+        
+        // Dispatch event to notify SummarySection
+        window.dispatchEvent(new Event('categoryNameUpdated'));
+      }
       
       return {
         ...prev,

@@ -207,13 +207,13 @@ export default function TestResult() {
               <h3 className="text-sm font-semibold text-gray-800  uppercase">
                 AUDIT TOTAL SCORE ({totalScore} / {totalMaxScore})
               </h3>
-              <div className="relative w-full h-3 flex items-center rounded-full overflow-hidden">
+              <div className="relative w-full h-3 mt-2 flex items-center rounded-full ">
                 {/* Red section - 0-33.33% */}
-                <div className="absolute inset-y-0 left-0 h-3 bg-[#F65355] z-20" style={{ width: '33.33%' }}></div>
+                <div className="absolute inset-y-0 left-0 h-3 bg-[#F65355] z-20 rounded-l-full" style={{ width: '33.33%' }}></div>
                 {/* Yellow section - 33.33-66.66% */}
-                <div className="absolute inset-y-0 h-3 bg-[#F7AF41] z-10" style={{ left: '33.33%', width: '33.33%' }}></div>
+                <div className="absolute inset-y-0 h-3 bg-[#F7AF41] z-10 " style={{ left: '33.33%', width: '33.33%' }}></div>
                 {/* Green section - 66.66-100% */}
-                <div className="absolute inset-y-0 h-3 bg-[#2BD473] z-0" style={{ left: '66.66%', width: '33.34%' }}></div>
+                <div className="absolute inset-y-0 h-3 bg-[#2BD473] z-0 rounded-r-full" style={{ left: '66.66%', width: '33.34%' }}></div>
                 {/* Score indicator */}
                 <div
                   className="absolute transition-all duration-500 z-30"
@@ -241,14 +241,13 @@ export default function TestResult() {
               {firstFourCategories.map((cs) => {
                 // Calculate percentage for this category
                 const percentage = cs.maxScore > 0 ? (cs.score / cs.maxScore) * 100 : 0;
-                
                 // Determine color based on percentage
                 let borderColor: string;
                 let bgColor: string;
-                if (percentage < 20) {
+                if (percentage < 40) {
                   borderColor = '#F65355'; // Red
                   bgColor = 'rgba(246, 83, 85, 0.1)'; // Red with 10% opacity
-                } else if (percentage < 40) {
+                } else if (percentage < 80) {
                   borderColor = '#F7AF41'; // Orange
                   bgColor = 'rgba(247, 175, 65, 0.1)'; // Orange with 10% opacity
                 } else {
@@ -318,7 +317,7 @@ export default function TestResult() {
                         >
                           {step.type === 'file' && step.fileUrl ? (
                             <div className="flex items-center gap-2">
-                              <Image src={step.fileUrl} alt="Step" width={140} height={140} className="object-cover rounded w-full h-[120px]" />
+                              <Image src={step.fileUrl} alt="Step" width={140} height={140} className="object-contain rounded w-full h-[120px]" />
                         
                             </div>
                           ) : (

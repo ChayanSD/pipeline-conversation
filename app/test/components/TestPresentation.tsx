@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiClient } from "@/lib/fetcher";
+import { useQueryClient } from "@tanstack/react-query";
+import { auditKeys } from "@/lib/hooks/useAudit";
 
 export default function TestPresentation() {
   const router = useRouter();
@@ -27,6 +29,7 @@ export default function TestPresentation() {
   const { data: questionsData, isLoading: questionsLoading, error: questionsError } = useTestQuestions(presentationId);
   const { data: progressData, isLoading: progressLoading, error: progressError } = useAuditProgress(presentationId);
   const submitTestMutation = useSubmitTest();
+  const queryClient = useQueryClient();
 
   // Get summary data from audit data (summary is included in the API response)
   const summaryData = auditData && 'summary' in auditData
@@ -426,64 +429,85 @@ export default function TestPresentation() {
             {/* Summary Icon */}
             <div
               className="flex flex-col items-center ml-4 cursor-pointer"
-              onClick={() => {
-                if (typeof window !== 'undefined' && presentationId && presentation) {
-                  // Calculate current scores from answers
-                  const scores: Record<string, number> = {};
-                  presentation.categories.forEach(cat => {
-                    scores[cat.id] = 0;
-                  });
+              onClick={async () => {
+                if (typeof window !== 'undefined' && presentationId && presentation && user) {
+                  try {
+                    // Calculate current scores from answers
+                    const scores: Record<string, number> = {};
+                    presentation.categories.forEach(cat => {
+                      scores[cat.id] = 0;
+                    });
 
-                  questions.forEach(q => {
-                    const selectedOptionId = answers[q.id];
-                    if (selectedOptionId) {
-                      const option = q.options.find(opt => opt.id === selectedOptionId);
-                      if (option) {
-                        const catId = q.category.id;
-                        scores[catId] = (scores[catId] || 0) + option.points;
+                    questions.forEach(q => {
+                      const selectedOptionId = answers[q.id];
+                      if (selectedOptionId) {
+                        const option = q.options.find(opt => opt.id === selectedOptionId);
+                        if (option) {
+                          const catId = q.category.id;
+                          scores[catId] = (scores[catId] || 0) + option.points;
+                        }
                       }
-                    }
-                  });
+                    });
 
-                  // Filter out summary category
-                  const nonSummaryCategories = presentation.categories.filter(
-                    cat => cat.name.toLowerCase() !== 'summary'
-                  );
+                    // Filter out summary category
+                    const nonSummaryCategories = presentation.categories.filter(
+                      cat => cat.name.toLowerCase() !== 'summary'
+                    );
 
-                  // Calculate total score (excluding summary)
-                  const totalScore = nonSummaryCategories.reduce((sum, cat) => {
-                    return sum + (scores[cat.id] || 0);
-                  }, 0);
+                    // Calculate total score (excluding summary)
+                    const totalScore = nonSummaryCategories.reduce((sum, cat) => {
+                      return sum + (scores[cat.id] || 0);
+                    }, 0);
 
-                  // Store category names and scores in sessionStorage (excluding summary)
-                  const testResultData = {
-                    totalScore,
-                    categoryScores: nonSummaryCategories.map(cat => {
-                      const categoryQuestions = questions.filter(q => q.category.id === cat.id);
-                      return {
-                        categoryId: cat.id,
-                        categoryName: cat.name,
-                        score: scores[cat.id] || 0,
-                        maxScore: categoryQuestions.length * 5,
-                      };
-                    }),
-                  };
-                  sessionStorage.setItem('testResultData', JSON.stringify(testResultData));
+                    // Prepare category scores for API
+                    const categoryScoresForAPI = nonSummaryCategories.map(cat => ({
+                      categoryId: cat.id,
+                      score: scores[cat.id] || 0,
+                    }));
 
-                  // Store category names
-                  presentation.categories.forEach((category, index) => {
-                    const categoryNumber = index + 1;
-                    if (category.name) {
-                      sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, category.name);
-                    }
-                  });
+                    // Update test score in database
+                    await apiClient.post('/test/update-score', {
+                      presentationId,
+                      totalScore,
+                      categoryScores: categoryScoresForAPI,
+                    });
 
-                  // Dispatch events to update sidebar
-                  window.dispatchEvent(new Event('categoryNameUpdated'));
-                  window.dispatchEvent(new Event('testResultUpdated'));
+                    // Invalidate audits query to refresh the main page with updated score
+                    queryClient.invalidateQueries({ queryKey: auditKeys.lists() });
 
-                  // Navigate to result page
-                  router.push(`/test/result?presentationId=${presentationId}`);
+                    // Store category names and scores in sessionStorage (excluding summary)
+                    const testResultData = {
+                      totalScore,
+                      categoryScores: nonSummaryCategories.map(cat => {
+                        const categoryQuestions = questions.filter(q => q.category.id === cat.id);
+                        return {
+                          categoryId: cat.id,
+                          categoryName: cat.name,
+                          score: scores[cat.id] || 0,
+                          maxScore: categoryQuestions.length * 5,
+                        };
+                      }),
+                    };
+                    sessionStorage.setItem('testResultData', JSON.stringify(testResultData));
+
+                    // Store category names
+                    presentation.categories.forEach((category, index) => {
+                      const categoryNumber = index + 1;
+                      if (category.name) {
+                        sessionStorage.setItem(`auditData:categoryName:${categoryNumber}`, category.name);
+                      }
+                    });
+
+                    // Dispatch events to update sidebar
+                    window.dispatchEvent(new Event('categoryNameUpdated'));
+                    window.dispatchEvent(new Event('testResultUpdated'));
+
+                    // Navigate to result page
+                    router.push(`/test/result?presentationId=${presentationId}`);
+                  } catch (error) {
+                    console.error("Error updating test score:", error);
+                    toast.error("Failed to update test score. Please try again.");
+                  }
                 }
               }}
             >
@@ -551,13 +575,13 @@ export default function TestPresentation() {
                         </div>
                       </td>
                       <td className="border-r border-gray-300 px-4 align-middle">
-                        <div className="relative" data-question-id={question.id}>
+                        <div className="relative py-1" data-question-id={question.id}>
                           <Select
                             value={selectedOptionId || undefined}
                             onValueChange={(value) => handleAnswerChange(question.id, value)}
                           >
                             <SelectTrigger
-                              className="w-[30vw]  h-[2.6vh] text-sm font-normal text-gray-700 ring-0 outline-none focus:ring-0 focus:ring-offset-0 bg-[#E8E8E8] border-none rounded-md [&>svg]:hidden px-3 pr-10"
+                              className="w-[30vw] text-sm font-normal text-gray-700 ring-0 outline-none focus:ring-0 focus:ring-offset-0 bg-[#E8E8E8] border-none rounded-md [&>svg]:hidden px-3 pr-10"
                               data-question-id={question.id}
                             >
                               <SelectValue
@@ -599,13 +623,13 @@ export default function TestPresentation() {
                             </SelectContent>
                           </Select>
                           <div
-                            className="absolute right-0 top-0 h-full w-10 flex items-center justify-center rounded-md pointer-events-none"
+                            className="absolute right-0 top-1 h-[80%] w-11 flex items-center justify-center rounded-md pointer-events-none"
                             style={{
                               backgroundColor: selectedOption ? getOptionColor(selectedOption.points) : 'transparent',
                             }}
                           >
                             <svg
-                              className="w-4 h-2"
+                              className="w-4 h-[9px] mt-1"
                               style={{
                                 color: selectedOption ? 'white' : '#606060',
                               }}
@@ -617,7 +641,7 @@ export default function TestPresentation() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-center align-middle w-16">
+                      <td className="px-4 text-center align-middle w-16">
                         <span className={`px-3 rounded text-sm font-medium text-gray-900`}>
                           {score > 0 ? score : '-'}
                         </span>
@@ -628,12 +652,12 @@ export default function TestPresentation() {
                 {/* Total Score Row */}
                 {currentCategoryData && (
                   <tr className=" border-r border-[#E8E8E8] ">
-                    <td className="border-r border-gray-300 px-4 py-1 text-center align-middle w-16">
+                    <td className="border-r border-gray-300 px-4 text-center align-middle w-16">
                     </td>
-                    <td className="px-4 py-2 align-middle border-r border-[#E8E8E8] w-full">
+                    <td className="px-4  align-middle border-r border-[#E8E8E8] w-full">
                     </td>
-                    <td className="border-r border-gray-300 px-4 py-1 align-middle">
-                      <div className="w-full px-4 h-[2.8vh] border-[#E8E8E8] rounded-xl flex items-center justify-end">
+                    <td className="border-r border-gray-300 px-4  align-middle">
+                      <div className="w-full px-4 border-[#E8E8E8] rounded-xl flex items-center justify-end">
                         <span className="text-gray-50 rounded-lg p-1 px-2 font-semibold " style={{ backgroundColor: primaryColor }}>Total Score</span>
                       </div>
                     </td>
@@ -650,7 +674,7 @@ export default function TestPresentation() {
 
           {/* Score Interpretation Blocks */}
           {currentCategoryData && currentCategoryMaxScore > 0 && (
-            <div className="mt-6 grid grid-cols-3 gap-0">
+            <div className="mt-2 grid grid-cols-3 gap-0">
               {/* Block 1: Low Score */}
               <div className="bg-white rounded-tl-xl  border-r-2  border-white ">
                 <div
@@ -706,7 +730,7 @@ export default function TestPresentation() {
 
           {/* Category Score Progress Bar */}
           {currentCategoryData && currentCategoryMaxScore > 0 && (
-            <div className="mt-4 pt-2 px-4 pb-6 bg-[#D8DEE2] relative">
+            <div className="mt-2 pt-1 px-4 pb-5 bg-[#D8DEE2] relative">
               <h3 className="text-base font-semibold text-gray-800 mb-3 uppercase">
                 {currentCategoryData.name.toUpperCase()} SCORE ({currentCategoryScore} / {currentCategoryMaxScore})
               </h3>

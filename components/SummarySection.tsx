@@ -349,6 +349,90 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
     };
   }, [sessionStorageCategories]);
 
+  // Listen for category name updates and refresh categories from sessionStorage
+  const [refreshedCategories, setRefreshedCategories] = useState<Array<{ id: string; name: string }>>(sessionStorageCategories);
+  
+  // Update refreshedCategories when sessionStorageCategories prop changes
+  useEffect(() => {
+    if (sessionStorageCategories.length > 0) {
+      // Refresh names from sessionStorage when prop changes
+      const updatedCategories = sessionStorageCategories.map((cat, index) => {
+        const categoryNumber = index + 1;
+        if (typeof window !== 'undefined') {
+          const updatedName = sessionStorage.getItem(`auditData:categoryName:${categoryNumber}`);
+          return {
+            id: cat.id,
+            name: updatedName || cat.name || `Category ${categoryNumber}`,
+          };
+        }
+        return cat;
+      });
+      setRefreshedCategories(updatedCategories);
+    }
+  }, [sessionStorageCategories]);
+  
+  useEffect(() => {
+    const handleCategoryNameUpdate = () => {
+      if (typeof window === 'undefined') return;
+      
+      // Refresh categories from sessionStorage to get updated names
+      const updatedCategories: Array<{ id: string; name: string }> = [];
+      
+      // Try to get from sessionStorageCategories prop first (has real IDs)
+      if (sessionStorageCategories.length > 0) {
+        sessionStorageCategories.forEach((cat, index) => {
+          const categoryNumber = index + 1;
+          const updatedName = sessionStorage.getItem(`auditData:categoryName:${categoryNumber}`);
+          updatedCategories.push({
+            id: cat.id,
+            name: updatedName || cat.name || `Category ${categoryNumber}`,
+          });
+        });
+      } else {
+        // Fallback: get from auditData in sessionStorage
+        try {
+          const auditDataStr = sessionStorage.getItem('auditData');
+          if (auditDataStr) {
+            const auditData = JSON.parse(auditDataStr);
+            if (auditData.categories && Array.isArray(auditData.categories)) {
+              auditData.categories.forEach((cat: { id: string; name: string }, index: number) => {
+                const categoryNumber = index + 1;
+                const updatedName = sessionStorage.getItem(`auditData:categoryName:${categoryNumber}`);
+                updatedCategories.push({
+                  id: cat.id || `temp-${index}`,
+                  name: updatedName || cat.name || `Category ${categoryNumber}`,
+                });
+              });
+            }
+          }
+        } catch {}
+      }
+      
+      if (updatedCategories.length > 0) {
+        setRefreshedCategories(updatedCategories);
+      }
+    };
+
+    // Initial load
+    handleCategoryNameUpdate();
+
+    // Listen for category name updates
+    window.addEventListener('categoryNameUpdated', handleCategoryNameUpdate);
+    
+    // Also listen for storage events (cross-tab sync)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key?.startsWith('auditData:categoryName:')) {
+        handleCategoryNameUpdate();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('categoryNameUpdated', handleCategoryNameUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [sessionStorageCategories]);
+
   const uploadToCloudinary = async (file: File): Promise<string> => {
     const uploadData = new FormData();
     uploadData.append("file", file);
@@ -554,14 +638,17 @@ export default function SummarySection({ editId, isCreateMode, sessionStorageCat
   }
 
   // Get categories from either API or sessionStorage
+  // Use refreshedCategories which has the latest names from sessionStorage
   const categories = isCreateMode 
-    ? sessionStorageCategories.length > 0 
-      ? sessionStorageCategories 
-      : Array.from({ length: 7 }, (_, i) => ({
-          id: `temp-${i}`,
-          name: `Category ${i + 1}`,
-        }))
-    : (sessionStorageCategories.length > 0 ? sessionStorageCategories : (auditData?.categories || []));
+    ? refreshedCategories.length > 0 
+      ? refreshedCategories 
+      : sessionStorageCategories.length > 0
+        ? sessionStorageCategories
+        : Array.from({ length: 7 }, (_, i) => ({
+            id: `temp-${i}`,
+            name: `Category ${i + 1}`,
+          }))
+    : (refreshedCategories.length > 0 ? refreshedCategories : (sessionStorageCategories.length > 0 ? sessionStorageCategories : (auditData?.categories || [])));
 
   return (
     <div className="bg-white overflow-hidden h-[77vh] flex flex-col">
