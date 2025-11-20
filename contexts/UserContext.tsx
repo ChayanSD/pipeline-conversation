@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, ReactNode, useState } from 'react';
+import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
 import { SessionUser } from '@/lib/session';
 
 interface UserContextType {
@@ -18,7 +18,29 @@ export function UserProvider({
   children: ReactNode;
   user: SessionUser | null;
 }) {
-  const [isInvitedUser, setIsInvitedUser] = useState(false);
+  const deriveInvitedFromUser = Boolean(
+    user?.companyRole &&
+      user.companyRole.toLowerCase() === 'invited'
+  );
+  const [isInvitedUser, setIsInvitedUserState] = useState(deriveInvitedFromUser);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = sessionStorage.getItem('isInvitedUser');
+    if (stored !== null) {
+      setIsInvitedUserState(stored === 'true');
+    } else {
+      sessionStorage.setItem('isInvitedUser', deriveInvitedFromUser ? 'true' : 'false');
+      setIsInvitedUserState(deriveInvitedFromUser);
+    }
+  }, [user, deriveInvitedFromUser]);
+
+  const setIsInvitedUser = useCallback((value: boolean) => {
+    setIsInvitedUserState(value);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('isInvitedUser', value ? 'true' : 'false');
+    }
+  }, []);
 
   return (
     <UserContext.Provider value={{ user, isInvitedUser, setIsInvitedUser }}>

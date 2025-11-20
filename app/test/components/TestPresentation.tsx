@@ -193,6 +193,21 @@ export default function TestPresentation() {
   const loading = auditLoading || questionsLoading || progressLoading;
   const presentation = auditData || null;
 
+  // Share loading state with sidebar so it can show skeletons
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem('testSidebarLoading', loading ? 'true' : 'false');
+    window.dispatchEvent(new Event('testSidebarLoadingChanged'));
+  }, [loading]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    return () => {
+      sessionStorage.setItem('testSidebarLoading', 'false');
+      window.dispatchEvent(new Event('testSidebarLoadingChanged'));
+    };
+  }, []);
+
   // Memoize questions to prevent unnecessary re-renders
   const questions = useMemo(() => questionsData || [], [questionsData]);
 

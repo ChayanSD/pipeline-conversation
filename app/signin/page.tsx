@@ -106,14 +106,14 @@ export default function SigninPage() {
                 </button>
               </div>
 
-              <div className="text-right mt-2">
+              {/* <div className="text-right mt-2">
                 <Link
                   href="/forgot-password"
                   className="text-sm text-blue-500 hover:text-blue-600"
                 >
                   Forgot Passcode?
                 </Link>
-              </div>
+              </div> */}
             </div>
 
             <button
