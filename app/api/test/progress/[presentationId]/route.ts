@@ -12,17 +12,14 @@ type RouteContext = {
   params: { presentationId: string };
 };
 
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const resolvedParams = await Promise.resolve(context.params);
-    const presentationId =
-      resolvedParams?.presentationId ??
-      request.nextUrl.pathname.split("/").filter(Boolean).pop();
+const url = new URL(request.url);
+const presentationId = url.pathname.split("/").pop();
     if (!presentationId) {
       return NextResponse.json(
         { error: "Presentation ID is required" },
@@ -52,17 +49,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const resolvedParams = await Promise.resolve(context.params);
-    const presentationId =
-      resolvedParams?.presentationId ??
-      request.nextUrl.pathname.split("/").filter(Boolean).pop();
+    const url = new URL(request.url);
+    const presentationId = url.pathname.split("/").pop();
     if (!presentationId) {
       return NextResponse.json(
         { error: "Presentation ID is required" },
