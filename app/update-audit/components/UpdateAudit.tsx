@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auditApi } from "@/lib/api";
+import { useUpdateAudit } from "@/lib/hooks/useAudit";
 import { Presentation } from "@/lib/types";
 import toast from "react-hot-toast";
 import TableSkeleton from "../../add-new-audit/components/tableSkeleton";
@@ -10,13 +11,14 @@ import { CustomButton } from "@/components/common";
 import { FiEdit } from "react-icons/fi";
 import SummarySection from "@/components/SummarySection";
 
-type OptionState = { text: string; points: number };
+type OptionState = { id?: string; text: string; points: number };
 type CategoryFormData = {
   id?: string;
   name: string;
   icon?: string;
   recommendation?: string;
   questions: Array<{
+    id?: string;
     text: string;
     options: OptionState[];
   }>;
@@ -37,6 +39,8 @@ export default function UpdateAudit() {
   const searchParams = useSearchParams();
   const currentCategory = parseInt(searchParams.get('category') || '1', 10);
   const editId = searchParams.get('edit');
+  
+  const updateAuditMutation = useUpdateAudit();
   
   const [formData, setFormData] = useState<FormData>({
     title: "",
@@ -310,8 +314,10 @@ export default function UpdateAudit() {
             name: cat.name,
           icon: cat.icon || undefined,
               questions: cat.questions.map(q => ({
+                id: q.id,
                 text: q.text,
                 options: q.options.map(opt => ({
+                  id: opt.id,
                   text: opt.text,
                   points: opt.points
                 }))
@@ -897,9 +903,11 @@ export default function UpdateAudit() {
           const questions = cat.questions
             .filter(q => q.text && q.text.trim().length > 0)
             .map(q => ({
+              id: q.id, // Include question ID if it exists
               text: q.text.trim(),
               options: (Array.isArray(q.options) && q.options.length === 5)
-                ? q.options.map(opt => ({
+                ? q.options.map((opt) => ({
+                    id: opt.id, // Include option ID if it exists
                     text: opt.text.trim(),
                     points: opt.points
                   }))
@@ -911,6 +919,7 @@ export default function UpdateAudit() {
             .filter(q => q.text.length > 0);
 
           return {
+            id: cat.id, // Include category ID if it exists
             name: categoryName,
             icon: categoryIcon,
             questions
@@ -973,11 +982,14 @@ export default function UpdateAudit() {
         hydrateNextSteps(formData.summary);
       }
 
-      // Call update audit API
-      await auditApi.update(editId, {
-        title: formData.title.trim(),
-        categories,
-        summary: summaryData,
+      // Call update audit API using mutation hook (this will automatically invalidate cache)
+      await updateAuditMutation.mutateAsync({
+        id: editId,
+        data: {
+          title: formData.title.trim(),
+          categories,
+          summary: summaryData,
+        },
       });
 
       toast.success("Audit updated successfully");
@@ -1070,7 +1082,7 @@ export default function UpdateAudit() {
               size="md"
               className="flex-1"
               fullRounded={true}
-              disabled={submitting}
+              disabled={submitting || updateAuditMutation.isPending}
               onClick={handleUpdate}
             >
               {submitting ? "Saving..." : "Save Audit"}

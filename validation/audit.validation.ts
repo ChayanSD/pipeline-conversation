@@ -7,17 +7,20 @@ export const AuditCreateSchema = z.object({
   categories: z
     .array(
       z.object({
+        id: z.string().optional(), // Optional ID for updates
         name: z.string().min(1, "Category name is required"),
         icon: z.string().optional(),
 
         questions: z
           .array(
             z.object({
+              id: z.string().optional(), // Optional ID for updates
               text: z.string().min(1, "Question text is required"),
 
               options: z
                 .array(
                   z.object({
+                    id: z.string().optional(), // Optional ID for updates
                     text: z.string().min(1, "Option text is required"),
                     points: z.number().int().min(1).max(5).default(1),
                   })
