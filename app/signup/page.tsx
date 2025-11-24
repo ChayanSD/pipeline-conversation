@@ -31,9 +31,6 @@ export default function SignupPage() {
     role: "USER",
     inviteToken: "",
   });
-  const [invitation, setInvitation] = useState<InvitationData | null>(null);
-  const [profileImage, setProfileImage] = useState<File | null>(null);
-  const [companyLogo, setCompanyLogo] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [uploadingProfile, setUploadingProfile] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -46,7 +43,6 @@ export default function SignupPage() {
 console.log(inviteData);
   useEffect(() => {
     if (inviteData && token) {
-      setInvitation(inviteData as unknown as InvitationData);
       const inviteEmail = (inviteData as unknown as InvitationData).email;
       setFormData((prev) => ({
         ...prev,
@@ -57,9 +53,7 @@ console.log(inviteData);
         name: prev.name || inviteEmail.split('@')[0] || 'User',
       }));
     }
-    if (inviteQueryError) {
-      setInvitation(null);
-    }
+    // no-op for inviteQueryError: handled downstream via disabled inputs/messages if needed
   }, [inviteData, inviteQueryError, token]);
 
   const handleInputChange = (
@@ -119,20 +113,6 @@ console.log(inviteData);
     setMessage("");
 
     try {
-      let profileImageUrl = "";
-      let companyLogoUrl = "";
-
-      // Only upload images if not using invitation token (token-based signup doesn't need company logo)
-      if (!token) {
-        if (profileImage)
-          profileImageUrl = await uploadToCloudinary(profileImage);
-        if (companyLogo)
-          companyLogoUrl = await uploadToCloudinary(companyLogo);
-      } else if (profileImage) {
-        // For token-based signup, only upload profile image if provided
-        profileImageUrl = await uploadToCloudinary(profileImage);
-      }
-
       const dataToSend = {
         name: formData.name,
         email: formData.email,
@@ -141,13 +121,13 @@ console.log(inviteData);
         // Only include company-related fields if not using token
         ...(token ? {} : {
           companyName: formData.companyName || undefined,
-          companyLogoUrl: companyLogoUrl || undefined,
+          companyLogoUrl: formData.companyLogoUrl || undefined,
           // Only include colors if not using token (invited users get colors from inviter)
           primaryColor: formData.primaryColor,
           secondaryColor: formData.secondaryColor,
         }),
         // Profile image can be included for both cases
-        profileImageUrl: profileImageUrl || undefined,
+        profileImageUrl: formData.profileImageUrl || undefined,
       };
 
       const response = await registerMutation.mutateAsync(dataToSend);

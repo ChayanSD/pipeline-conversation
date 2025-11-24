@@ -590,7 +590,9 @@ export default function TestPresentation() {
                               />
                             </SelectTrigger>
                             <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-md">
-                              {question.options.map((option) => {
+                              {[...question.options]
+                                .sort((a, b) => a.points - b.points)
+                                .map((option) => {
                                 const backgroundColor = getOptionBackgroundColor(option.points);
                                 const textColor = getOptionTextColor(option.points);
                                 return (
