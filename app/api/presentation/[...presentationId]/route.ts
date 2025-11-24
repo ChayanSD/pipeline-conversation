@@ -1,6 +1,7 @@
 import prisma from "@/lib/db";
 import { updatePresentationSchema } from "@/validation/presentation.validation";
 import { NextRequest, NextResponse } from "next/server";
+import { withCache, invalidateCache } from "@/lib/cache";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const url = new URL(request.url);
@@ -13,45 +14,47 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  try {
-    const presentation = await prisma.presentation.findUnique({
-      where: { id: presentationId },
-      include: {
-        categories: {
-          include: {
-            questions: {
-              include: {
-                options: true,
+  return withCache(`presentation:id:${presentationId}`, async () => {
+    try {
+      const presentation = await prisma.presentation.findUnique({
+        where: { id: presentationId },
+        include: {
+          categories: {
+            include: {
+              questions: {
+                include: {
+                  options: true,
+                },
               },
             },
           },
+          summary: true,
         },
-        summary: true,
-      },
-    });
+      });
 
-    if (!presentation) {
+      if (!presentation) {
+        return NextResponse.json(
+          { error: "Presentation not found" },
+          { status: 404 }
+        );
+      }
+
       return NextResponse.json(
-        { error: "Presentation not found" },
-        { status: 404 }
+        {
+          success: true,
+          message: "Presenatioan fetched successfully",
+          presentation,
+        },
+        { status: 200 }
+      );
+    } catch (error) {
+      console.error("Error fetching category:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch category" },
+        { status: 500 }
       );
     }
-
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Presenatioan fetched successfully",
-        presentation,
-      },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error("Error fetching category:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch category" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
@@ -102,6 +105,10 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       data: updateData,
     });
 
+    // Invalidate caches
+    await invalidateCache(`presentation:id:${presentationId}`);
+    await invalidateCache(`presentation:${presentation.userId}`);
+
     return NextResponse.json(
       {
         success: true,
@@ -131,9 +138,25 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    // Get the presentation to know the userId before deleting
+    const presentation = await prisma.presentation.findUnique({
+      where: { id: presentationId },
+    });
+
+    if (!presentation) {
+      return NextResponse.json(
+        { error: "Presentation not found" },
+        { status: 404 }
+      );
+    }
+
     await prisma.presentation.delete({
       where: { id: presentationId },
     });
+
+    // Invalidate caches
+    await invalidateCache(`presentation:id:${presentationId}`);
+    await invalidateCache(`presentation:${presentation.userId}`);
 
     return NextResponse.json(
       {

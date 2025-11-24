@@ -9,6 +9,7 @@ import {
   setSessionCookie,
 } from '@/lib/session';
 import prisma from '@/lib/db';
+import { withCache, invalidateCache } from '@/lib/cache';
 
 export async function PATCH(request: NextRequest) : Promise<NextResponse> {
   try {
@@ -142,6 +143,9 @@ export async function PATCH(request: NextRequest) : Promise<NextResponse> {
     const sessionId = await createSession(updatedUser);
     await setSessionCookie(sessionId);
 
+    // Invalidate profile cache
+    await invalidateCache(`profile:${session.id}`);
+
     return NextResponse.json(
       {
         success: true,
@@ -178,7 +182,7 @@ export async function PATCH(request: NextRequest) : Promise<NextResponse> {
 export async function GET() : Promise<NextResponse> {
   try {
     const session = await getSession();
-    
+
     if (!session) {
       return NextResponse.json(
         { error: 'Not authenticated' },
@@ -186,12 +190,16 @@ export async function GET() : Promise<NextResponse> {
       );
     }
 
-    return NextResponse.json(
-      {
-        user: session,
-      },
-      { status: 200 }
-    );
+    const userId = session.id;
+
+    return withCache(`profile:${userId}`, async () => {
+      return NextResponse.json(
+        {
+          user: session,
+        },
+        { status: 200 }
+      );
+    });
   } catch (error) {
     console.error('Get profile error:', error);
     return NextResponse.json(
