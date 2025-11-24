@@ -1,6 +1,7 @@
 import prisma from "@/lib/db";
 import { updateCategorySchema } from "@/validation/category.validation";
 import { NextRequest, NextResponse } from "next/server";
+import { withCache, invalidateCache } from "@/lib/cache";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const url = new URL(request.url);
@@ -13,40 +14,42 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  try {
-    const category = await prisma.category.findUnique({
-      where: { id: categoryId },
-      include: {
-        questions: {
-          include: {
-            options: true,
+  return withCache(`category:${categoryId}`, async () => {
+    try {
+      const category = await prisma.category.findUnique({
+        where: { id: categoryId },
+        include: {
+          questions: {
+            include: {
+              options: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    if (!category) {
+      if (!category) {
+        return NextResponse.json(
+          { error: "Category not found" },
+          { status: 404 }
+        );
+      }
+
       return NextResponse.json(
-        { error: "Category not found" },
-        { status: 404 }
+        {
+          success: true,
+          message: "Category fetched successfully",
+          category,
+        },
+        { status: 200 }
+      );
+    } catch (error) {
+      console.error("Error fetching category:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch category" },
+        { status: 500 }
       );
     }
-
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Category fetched successfully",
-        category,
-      },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error("Error fetching category:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch category" },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 export async function PATCH(request: NextRequest): Promise<NextResponse> {
@@ -105,6 +108,10 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       },
     });
 
+    // Invalidate caches
+    await invalidateCache(`category:${categoryId}`);
+    await invalidateCache('categories');
+
     return NextResponse.json(
       {
         success: true,
@@ -137,6 +144,10 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     await prisma.category.delete({
       where: { id: categoryId },
     });
+
+    // Invalidate caches
+    await invalidateCache(`category:${categoryId}`);
+    await invalidateCache('categories');
 
     return NextResponse.json(
       {

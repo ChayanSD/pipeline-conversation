@@ -2,6 +2,7 @@ import prisma from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { presentationSchema } from "@/validation/presentation.validation";
 import { NextRequest, NextResponse } from "next/server";
+import { withCache, invalidateCache } from "@/lib/cache";
 
 export async function GET(): Promise<NextResponse> {
   try {
@@ -11,37 +12,39 @@ export async function GET(): Promise<NextResponse> {
     }
     const userId = session.id;
 
-    const presentations = await prisma.presentation.findMany({
-      where: {
-        userId: userId,
-      },
-      include: {
-        categories: {
-          include: {
-            questions: {
-              include: {
-                options: true,
+    return withCache(`presentation:${userId}`, async () => {
+      const presentations = await prisma.presentation.findMany({
+        where: {
+          userId: userId,
+        },
+        include: {
+          categories: {
+            include: {
+              questions: {
+                include: {
+                  options: true,
+                },
               },
             },
           },
+          tests: true,
         },
-        tests: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Presentation fetch successfully",
-        presentations,
-      },
-      {
-        status: 200,
-      }
-    );
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Presentation fetch successfully",
+          presentations,
+        },
+        {
+          status: 200,
+        }
+      );
+    });
   } catch (error) {
     console.error("Error fetching presentations:", error);
     return NextResponse.json(
@@ -72,6 +75,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         title: validatedData.title,
       },
     });
+
+    // Invalidate cache for this user
+    await invalidateCache(`presentation:${validatedData.userId}`);
+
     return NextResponse.json(presentation, { status: 201 });
   } catch (error) {
     console.error("Error creating presentation:", error);

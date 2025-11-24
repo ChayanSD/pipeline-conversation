@@ -2,6 +2,7 @@ import prisma from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { AuditCreateSchema } from "@/validation/audit.validation";
 import { NextRequest, NextResponse } from "next/server";
+import { invalidateCache } from "@/lib/cache";
 
 export async function PATCH(req: NextRequest): Promise<Response> {
   try {
@@ -272,6 +273,11 @@ export async function PATCH(req: NextRequest): Promise<Response> {
         summary: true,
       },
     });
+
+    // Invalidate cache for this user
+    await invalidateCache(`audit:${userId}`);
+    // Also invalidate global categories cache
+    await invalidateCache('categories');
 
     return NextResponse.json(
       {

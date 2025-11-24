@@ -1,6 +1,7 @@
 import prisma from "@/lib/db";
 import { categorySchema } from "@/validation/category.validation";
 import { NextRequest, NextResponse } from "next/server";
+import { withCache, invalidateCache } from "@/lib/cache";
 
 export async function POST(request: NextRequest) : Promise<NextResponse> {
   try {
@@ -20,6 +21,10 @@ export async function POST(request: NextRequest) : Promise<NextResponse> {
         name: validatedData.name,
       },
     });
+
+    // Invalidate categories cache
+    await invalidateCache('categories');
+
     return NextResponse.json(category, { status: 201 });
   } catch (error) {
     console.error("Error creating category:", error);
@@ -31,35 +36,37 @@ export async function POST(request: NextRequest) : Promise<NextResponse> {
 }
 
 export async function GET() : Promise<NextResponse> {
-  try {
-    const categories = await prisma.category.findMany({
-      include: {
-        questions: {
-          include: {
-            options: true,
+  return withCache('categories', async () => {
+    try {
+      const categories = await prisma.category.findMany({
+        include: {
+          questions: {
+            include: {
+              options: true,
+            },
           },
         },
-      },
-    });
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Categories fetch successfully",
-        categories,
-      },
-      {
-        status: 200,
-      }
-    );
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      {
-        message: "something went wrong",
-      },
-      {
-        status: 500,
-      }
-    );
-  }
+      });
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Categories fetch successfully",
+          categories,
+        },
+        {
+          status: 200,
+        }
+      );
+    } catch (error) {
+      console.error(error);
+      return NextResponse.json(
+        {
+          message: "something went wrong",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+  });
 }

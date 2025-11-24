@@ -54,7 +54,7 @@ export async function getSession(): Promise<SessionUser | null> {
   }
 
   const sessionKey = `session:${sessionId}`;
-  const sessionData = await redis.get<SessionUser>(sessionKey);
+  const sessionData = await redis.get(sessionKey);
 
   if (!sessionData) {
     console.log(`No session found in Redis for key: ${sessionKey}`);
@@ -64,11 +64,17 @@ export async function getSession(): Promise<SessionUser | null> {
   // Extend TTL on access
   await redis.expire(sessionKey, SESSION_TTL);
 
-  // Upstash already returns parsed JSON
+  let parsedSession: SessionUser;
+  if (typeof sessionData === 'string') {
+    parsedSession = JSON.parse(sessionData);
+  } else {
+    parsedSession = sessionData as SessionUser;
+  }
+
   return {
-    ...sessionData,
-    createdAt: new Date(sessionData.createdAt),
-    updatedAt: new Date(sessionData.updatedAt),
+    ...parsedSession,
+    createdAt: new Date(parsedSession.createdAt),
+    updatedAt: new Date(parsedSession.updatedAt),
   };
 }
 

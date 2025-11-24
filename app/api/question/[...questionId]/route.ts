@@ -2,6 +2,7 @@ import prisma from "@/lib/db";
 import { updateQuestionSchema } from "@/validation/questions.validation";
 import { Prisma } from "../../../../app/generated/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { withCache, invalidateCache } from "@/lib/cache";
 
 export async function PATCH(req: NextRequest) : Promise<NextResponse> {
   try {
@@ -66,6 +67,9 @@ export async function PATCH(req: NextRequest) : Promise<NextResponse> {
       include: { options: true },
     });
 
+    // Invalidate cache
+    await invalidateCache(`question:${questionId}`);
+
     return NextResponse.json(
       {
         success: true,
@@ -110,6 +114,9 @@ export async function DELETE(req: NextRequest) : Promise<NextResponse> {
       where: { id: questionId },
     });
 
+    // Invalidate cache
+    await invalidateCache(`question:${questionId}`);
+
     return NextResponse.json(
       { success: true, message: "Question deleted successfully" },
       { status: 200 }
@@ -135,19 +142,21 @@ export async function GET(req: NextRequest) : Promise<NextResponse> {
       );
     }
 
-    const question = await prisma.question.findUnique({
-      where: { id: questionId },
-      include: { options: true, category: true },
+    return withCache(`question:${questionId}`, async () => {
+      const question = await prisma.question.findUnique({
+        where: { id: questionId },
+        include: { options: true, category: true },
+      });
+
+      if (!question) {
+        return NextResponse.json(
+          { error: "Question not found" },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({ question }, { status: 200 });
     });
-
-    if (!question) {
-      return NextResponse.json(
-        { error: "Question not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ question }, { status: 200 });
   } catch (error) {
     console.error("[GET_QUESTION_ERROR]", error);
     return NextResponse.json(
