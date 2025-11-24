@@ -12,7 +12,7 @@ type RouteContext = {
   params: Promise<{ presentationId: string }>;
 };
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const session = await getSession();
     if (!session) {
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const session = await getSession();
     if (!session) {

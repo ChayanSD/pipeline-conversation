@@ -43,22 +43,174 @@ export async function PATCH(req: NextRequest): Promise<Response> {
 
     const data = parsed.data;
 
-    // Delete existing categories and their related data (cascade will handle questions and options)
-    await prisma.category.deleteMany({
-      where: { presentationId: auditId },
+    // Get existing audit with all related data
+    const existingAuditWithData = await prisma.presentation.findUnique({
+      where: { id: auditId },
+      include: {
+        categories: {
+          include: {
+            questions: {
+              include: { options: true },
+            },
+          },
+        },
+      },
     });
 
-    // Create updated audit with new categories
-    const audit = await prisma.presentation.update({
+    if (!existingAuditWithData) {
+      return Response.json({ error: "Audit not found" }, { status: 404 });
+    }
+
+    // Update presentation title
+    await prisma.presentation.update({
       where: { id: auditId },
-      data: {
-        title: data.title,
-        categories: {
-          create: data.categories.map((cat) => ({
-            name: cat.name,
-            icon: (cat.icon && cat.icon.trim()) ? cat.icon.trim() : null,
+      data: { title: data.title },
+    });
+
+    // Collect all existing IDs from payload
+    const payloadCategoryIds = new Set(
+      data.categories.filter((cat) => cat.id).map((cat) => cat.id!)
+    );
+    const payloadQuestionIds = new Set<string>();
+    const payloadOptionIds = new Set<string>();
+
+    data.categories.forEach((cat) => {
+      cat.questions.forEach((q) => {
+        if (q.id) payloadQuestionIds.add(q.id);
+        q.options.forEach((opt) => {
+          if (opt.id) payloadOptionIds.add(opt.id);
+        });
+      });
+    });
+
+    // Delete categories that are not in payload
+    const categoriesToDelete = existingAuditWithData.categories.filter(
+      (cat) => !payloadCategoryIds.has(cat.id)
+    );
+    if (categoriesToDelete.length > 0) {
+      await prisma.category.deleteMany({
+        where: {
+          id: { in: categoriesToDelete.map((cat) => cat.id) },
+        },
+      });
+    }
+
+    // Process each category from payload
+    for (const catData of data.categories) {
+      if (catData.id && payloadCategoryIds.has(catData.id)) {
+        // Update existing category
+        const existingCategory = existingAuditWithData.categories.find(
+          (c) => c.id === catData.id
+        );
+
+        if (existingCategory) {
+          // Update category name and icon
+          await prisma.category.update({
+            where: { id: catData.id },
+            data: {
+              name: catData.name,
+              icon: (catData.icon && catData.icon.trim()) ? catData.icon.trim() : null,
+            },
+          });
+
+          // Collect question IDs from payload for this category
+          const categoryQuestionIds = new Set(
+            catData.questions.filter((q) => q.id).map((q) => q.id!)
+          );
+
+          // Delete questions not in payload
+          const questionsToDelete = existingCategory.questions.filter(
+            (q) => !categoryQuestionIds.has(q.id)
+          );
+          if (questionsToDelete.length > 0) {
+            await prisma.question.deleteMany({
+              where: {
+                id: { in: questionsToDelete.map((q) => q.id) },
+              },
+            });
+          }
+
+          // Process each question
+          for (const qData of catData.questions) {
+            if (qData.id && categoryQuestionIds.has(qData.id)) {
+              // Update existing question
+              const existingQuestion = existingCategory.questions.find(
+                (q) => q.id === qData.id
+              );
+
+              if (existingQuestion) {
+                // Update question text
+                await prisma.question.update({
+                  where: { id: qData.id },
+                  data: { text: qData.text },
+                });
+
+                // Collect option IDs from payload for this question
+                const questionOptionIds = new Set(
+                  qData.options.filter((opt) => opt.id).map((opt) => opt.id!)
+                );
+
+                // Delete options not in payload
+                const optionsToDelete = existingQuestion.options.filter(
+                  (opt) => !questionOptionIds.has(opt.id)
+                );
+                if (optionsToDelete.length > 0) {
+                  await prisma.option.deleteMany({
+                    where: {
+                      id: { in: optionsToDelete.map((opt) => opt.id) },
+                    },
+                  });
+                }
+
+                // Process each option
+                for (const optData of qData.options) {
+                  if (optData.id && questionOptionIds.has(optData.id)) {
+                    // Update existing option
+                    await prisma.option.update({
+                      where: { id: optData.id },
+                      data: {
+                        text: optData.text,
+                        points: optData.points,
+                      },
+                    });
+                  } else {
+                    // Create new option
+                    await prisma.option.create({
+                      data: {
+                        text: optData.text,
+                        points: optData.points,
+                        questionId: qData.id!,
+                      },
+                    });
+                  }
+                }
+              }
+            } else {
+              // Create new question
+              await prisma.question.create({
+                data: {
+                  text: qData.text,
+                  categoryId: catData.id!,
+                  options: {
+                    create: qData.options.map((opt) => ({
+                      text: opt.text,
+                      points: opt.points,
+                    })),
+                  },
+                },
+              });
+            }
+          }
+        }
+      } else {
+        // Create new category
+        await prisma.category.create({
+          data: {
+            name: catData.name,
+            icon: (catData.icon && catData.icon.trim()) ? catData.icon.trim() : null,
+            presentationId: auditId,
             questions: {
-              create: cat.questions.map((q) => ({
+              create: catData.questions.map((q) => ({
                 text: q.text,
                 options: {
                   create: q.options.map((opt) => ({
@@ -68,28 +220,16 @@ export async function PATCH(req: NextRequest): Promise<Response> {
                 },
               })),
             },
-          })),
-        },
-      },
-      include: {
-        categories: {
-          include: {
-            questions: {
-              include: { options: true },
-            },
           },
-        },
-        summary: true,
-      },
-    });
+        });
+      }
+    }
 
-    // Map category recommendations to new category IDs (by index since categories are created in order)
+    // Map category recommendations - use the category IDs from payload (they should already be correct)
     let mappedCategoryRecommendations = null;
     if (data.summary?.categoryRecommendations && Array.isArray(data.summary.categoryRecommendations)) {
-      mappedCategoryRecommendations = data.summary.categoryRecommendations.map((rec: { categoryId: string; recommendation: string }, idx: number) => ({
-        categoryId: audit.categories[idx]?.id || rec.categoryId,
-        recommendation: rec.recommendation,
-      }));
+      // Use the category IDs directly from the payload since we're preserving IDs
+      mappedCategoryRecommendations = data.summary.categoryRecommendations;
     }
 
     // Update summary with mapped category IDs
