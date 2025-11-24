@@ -4,11 +4,11 @@ import { AuditCreateSchema } from "@/validation/audit.validation";
 import { NextRequest, NextResponse } from "next/server";
 import { invalidateCache } from "@/lib/cache";
 
-export async function PATCH(req: NextRequest): Promise<Response> {
+export async function PATCH(req: NextRequest): Promise<NextResponse> {
   try {
     const session = await getSession();
     if (!session) {
-      return Response.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
     const userId = session.id;
     
@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     const auditId = url.pathname.split("/").pop();
 
     if (!auditId) {
-      return Response.json({ error: "Audit ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "Audit ID is required" }, { status: 400 });
     }
 
     // Verify the audit belongs to the user
@@ -25,18 +25,18 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     });
 
     if (!existingAudit) {
-      return Response.json({ error: "Audit not found" }, { status: 404 });
+      return NextResponse.json({ error: "Audit not found" }, { status: 404 });
     }
 
     if (existingAudit.userId !== userId) {
-      return Response.json({ error: "Unauthorized" }, { status: 403 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const body = await req.json();
     const parsed = AuditCreateSchema.safeParse(body);
     
     if (!parsed.success) {
-      return Response.json(
+      return NextResponse.json(
         { error: parsed.error.flatten().fieldErrors },
         { status: 400 }
       );
@@ -59,7 +59,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     });
 
     if (!existingAuditWithData) {
-      return Response.json({ error: "Audit not found" }, { status: 404 });
+      return NextResponse.json({ error: "Audit not found" }, { status: 404 });
     }
 
     // Update presentation title
@@ -274,10 +274,29 @@ export async function PATCH(req: NextRequest): Promise<Response> {
       },
     });
 
-    // Invalidate cache for this user
-    await invalidateCache(`audit:${userId}`);
-    // Also invalidate global categories cache
-    await invalidateCache('categories');
+    if (!updatedAudit) {
+      return NextResponse.json({ error: "Audit not found after update" }, { status: 404 });
+    }
+
+    // Collect all cache keys to invalidate
+    const cacheKeysToInvalidate = [
+      `audit:${userId}`,
+      'categories',
+      `presentation:${userId}`,
+      `presentation:id:${auditId}`,
+    ];
+
+    // Add category-specific caches
+    updatedAudit.categories.forEach((category) => {
+      cacheKeysToInvalidate.push(`category:${category.id}`);
+      // Add question-specific caches
+      category.questions.forEach((question) => {
+        cacheKeysToInvalidate.push(`question:${question.id}`);
+      });
+    });
+
+    // Invalidate all collected cache keys
+    await Promise.all(cacheKeysToInvalidate.map(key => invalidateCache(key)));
 
     return NextResponse.json(
       {
@@ -289,7 +308,7 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     );
   } catch (error) {
     console.error("Error updating audit:", error);
-    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 

@@ -4,18 +4,18 @@ import { AuditCreateSchema } from "@/validation/audit.validation";
 import { NextRequest, NextResponse } from "next/server";
 import { withCache, invalidateCache } from "@/lib/cache";
 
-export async function POST(req: NextRequest): Promise<Response> {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const session = await getSession();
     if (!session) {
-      return Response.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
     const userId = session.id;
     const body = await req.json();
 
     const parsed = AuditCreateSchema.safeParse(body);
     if (!parsed.success) {
-      return Response.json(
+      return NextResponse.json(
         { error: parsed.error.flatten().fieldErrors },
         { status: 400 }
       );
@@ -83,15 +83,15 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   } catch (error) {
     console.error("Error creating audit:", error);
-    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
-export async function GET(): Promise<Response> {
+export async function GET(): Promise<NextResponse> {
   try {
     const session = await getSession();
     if (!session) {
-      return Response.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
     const userId = session.id;
 
