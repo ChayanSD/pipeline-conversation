@@ -4,7 +4,7 @@ import { redis } from '@/lib/redis';
 
 const COOKIE_NAME = 'session_id';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require authentication
