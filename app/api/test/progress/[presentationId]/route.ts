@@ -9,7 +9,7 @@ const progressSchema = z.object({
 });
 
 type RouteContext = {
-  params: { presentationId: string };
+  params: Promise<{ presentationId: string }>;
 };
 
 export async function GET(request: NextRequest) {
@@ -18,8 +18,11 @@ export async function GET(request: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-const url = new URL(request.url);
-const presentationId = url.pathname.split("/").pop();
+
+    const resolvedParams = await context.params;
+    const presentationId =
+      resolvedParams?.presentationId ??
+      request.nextUrl.pathname.split("/").filter(Boolean).pop();
     if (!presentationId) {
       return NextResponse.json(
         { error: "Presentation ID is required" },
@@ -56,8 +59,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const url = new URL(request.url);
-    const presentationId = url.pathname.split("/").pop();
+    const resolvedParams = await context.params;
+    const presentationId =
+      resolvedParams?.presentationId ??
+      request.nextUrl.pathname.split("/").filter(Boolean).pop();
     if (!presentationId) {
       return NextResponse.json(
         { error: "Presentation ID is required" },
