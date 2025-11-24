@@ -9,7 +9,7 @@ const progressSchema = z.object({
 });
 
 type RouteContext = {
-  params: { presentationId: string };
+  params: Promise<{ presentationId: string }>;
 };
 
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const resolvedParams = await Promise.resolve(context.params);
+    const resolvedParams = await context.params;
     const presentationId =
       resolvedParams?.presentationId ??
       request.nextUrl.pathname.split("/").filter(Boolean).pop();
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const resolvedParams = await Promise.resolve(context.params);
+    const resolvedParams = await context.params;
     const presentationId =
       resolvedParams?.presentationId ??
       request.nextUrl.pathname.split("/").filter(Boolean).pop();
